@@ -48,7 +48,7 @@ app.get("/invoices", (req, res) => {
   res.json(invoices);
 });
 
-// ✅ ONLY ONE LISTEN (VERY IMPORTANT)
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
