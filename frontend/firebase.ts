@@ -1,5 +1,10 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  setPersistence,
+  browserLocalPersistence,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDv_C9fDAHWFbKoRVxFoQOuVv45twg0GOQ",
@@ -7,7 +12,16 @@ const firebaseConfig = {
   projectId: "invoicepilot-ec0bf",
 };
 
-const app = initializeApp(firebaseConfig);
+// ✅ Prevent multiple app init (Next.js fix)
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
+// ✅ Auth
 export const auth = getAuth(app);
+
+// ✅ Persist login (VERY IMPORTANT for Vercel)
+if (typeof window !== "undefined") {
+  setPersistence(auth, browserLocalPersistence);
+}
+
+// ✅ Google provider
 export const provider = new GoogleAuthProvider();
