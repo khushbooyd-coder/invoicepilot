@@ -48,6 +48,34 @@ app.get("/invoices", (req, res) => {
   res.json(invoices);
 });
 
+// 🔍 Check renewals
+app.get("/check-renewals", (req, res) => {
+  const today = new Date();
+
+  const due = invoices.filter(
+    (inv) =>
+      new Date(inv.renewalDate) <= today &&
+      inv.status !== "Paid"
+  );
+
+  res.json({ due });
+});
+
+// 💰 Mark as paid
+app.put("/pay-invoice/:id", (req, res) => {
+  const id = Number(req.params.id);
+
+  const invoice = invoices.find((inv) => inv.id === id);
+
+  if (!invoice) {
+    return res.status(404).json({ error: "Invoice not found" });
+  }
+
+  invoice.status = "Paid";
+
+  res.json({ success: true });
+});
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

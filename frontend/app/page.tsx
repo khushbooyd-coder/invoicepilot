@@ -16,12 +16,12 @@ export default function Home() {
 
   // 🔄 Fetch data
   const loadData = () => {
-    fetch("http://localhost:5001/invoices")
+    fetch("https://invoicepilot-6g3a.onrender.com/invoices")
       .then((res) => res.json())
       .then((data) => setInvoices(data.data || data))
       .catch((err) => console.error(err));
 
-    fetch("http://localhost:5001/check-renewals")
+    fetch("https://invoicepilot-6g3a.onrender.com/check-renewals")
       .then((res) => res.json())
       .then((data) => setDue(data.due))
       .catch((err) => console.error(err));
@@ -33,7 +33,7 @@ export default function Home() {
 
   // ➕ Create invoice
   const handleCreate = () => {
-    fetch("http://localhost:5001/add-license", {
+    fetch("https://invoicepilot-6g3a.onrender.com/add-license", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -58,7 +58,7 @@ export default function Home() {
 
   // 💰 Mark as paid
   const markPaid = (id: number) => {
-    fetch(`http://localhost:5001/pay-invoice/${id}`, {
+    fetch(`https://invoicepilot-6g3a.onrender.com/pay-invoice/${id}`, {
       method: "PUT",
     }).then(() => loadData());
   };
