@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { signInWithPopup } from "firebase/auth";
+import { auth, provider } from "../firebase";
 
 export default function Home() {
   const [filter, setFilter] = useState("all");
@@ -13,6 +15,16 @@ export default function Home() {
     startDate: "",
     renewalDate: "",
   });
+
+  const login = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    console.log("USER:", result.user);
+    alert(`Welcome ${result.user.displayName}`);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   // 🔄 Fetch data
   const loadData = () => {
@@ -81,7 +93,21 @@ export default function Home() {
           inv.status !== "Paid"
       );
   return (
+    
     <div style={{ padding: "30px", color: "white" }}>
+      <button
+      onClick={login}
+      style={{
+        padding: "10px 15px",
+        background: "orange",
+        border: "none",
+        borderRadius: "5px",
+        marginBottom: "20px",
+        cursor: "pointer",
+      }}
+    >
+      🔐 Login with Google
+      </button>
       <h1 style={{ fontSize: "28px", marginBottom: "20px" }}>
         📊 Invoice Dashboard
       </h1>
