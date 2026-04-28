@@ -96,10 +96,9 @@ app.post("/add-license", verifyToken, async (req, res) => {
 app.get("/invoices", verifyToken, async (req, res) => {
   try {
     const snapshot = await db
-      .collection("invoices")
-      .where("userId", "==", req.user.uid)
-      .orderBy("createdAt", "desc")
-      .get();
+  .collection("invoices")
+  .where("userId", "==", req.user.uid)
+  .get();
 
     const invoices = snapshot.docs.map((doc) => ({
       id: doc.id,
