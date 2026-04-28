@@ -6,7 +6,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://invoicepilot-git-main-khushbooyd-coders-projects.vercel.app"
+    "https://invoicepilot-xi.vercel.app"
   ],
   credentials: true
 }));
