@@ -3,10 +3,11 @@ const cors = require("cors");
 const admin = require("firebase-admin");
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+app.use(cors());
+app.use(express.json());
 
-// 🔐 Firebase init (SAFE for Render)
-const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+// 🔐 Firebase Admin Setup
+const serviceAccount = require("./firebase-key.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -14,100 +15,182 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-app.use(cors());
-app.use(express.json());
+// 🔐 VERIFY TOKEN MIDDLEWARE
+const verifyToken = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization;
 
-// ✅ Test route
-app.get("/", (req, res) => {
-  res.json({ message: "Backend running ✅" });
-});
+    if (!header || !header.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "No token provided" });
+    }
 
-// ✅ Add license
-app.post("/add-license", async (req, res) => {
+    const token = header.split(" ")[1];
+    const decoded = await admin.auth().verifyIdToken(token);
+
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+};
+
+// ➕ CREATE INVOICE
+app.post("/add-license", verifyToken, async (req, res) => {
   try {
     const { price, startDate, renewalDate, customer } = req.body;
 
-    if (!price || !startDate || !renewalDate) {
-      return res.status(400).json({ error: "Missing fields" });
+    // ✅ Validation
+    if (!price || !startDate || !renewalDate || !customer) {
+      return res.status(400).json({ error: "All fields are required" });
     }
 
+    if (new Date(renewalDate) <= new Date(startDate)) {
+      return res.status(400).json({ error: "Renewal must be after start date" });
+    }
+
+    const numericPrice = Number(price);
+
+    if (isNaN(numericPrice) || numericPrice <= 0) {
+      return res.status(400).json({ error: "Invalid price" });
+    }
+
+    // 📅 Calculate duration
     const diffDays = Math.ceil(
       (new Date(renewalDate) - new Date(startDate)) /
-      (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
     );
 
-    const amount = (price / 30) * diffDays;
+    if (diffDays <= 0) {
+      return res.status(400).json({ error: "Invalid duration" });
+    }
 
-    const invoice = {
-      amount: Number(amount.toFixed(2)),
-      days: diffDays,
+    // 💰 Calculate amount
+    const amount = Number(((numericPrice / 30) * diffDays).toFixed(2));
+
+    // 📦 Save to Firestore
+    const doc = await db.collection("invoices").add({
+      userId: req.user.uid,
+      customer,
+      price: numericPrice,
+      amount,
       status: "Pending",
       startDate,
       renewalDate,
-      customer: customer || "Client",
-      createdAt: new Date(),
-    };
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    const docRef = await db.collection("invoices").add(invoice);
-
-    res.json({ id: docRef.id, ...invoice });
+    res.json({ id: doc.id });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Add License Error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// ✅ Get invoices
-app.get("/invoices", async (req, res) => {
+// 📥 GET ALL INVOICES (USER-SPECIFIC)
+app.get("/invoices", verifyToken, async (req, res) => {
   try {
-    const snapshot = await db.collection("invoices").get();
+    const snapshot = await db
+      .collection("invoices")
+      .where("userId", "==", req.user.uid)
+      .orderBy("createdAt", "desc")
+      .get();
 
-    const data = snapshot.docs.map((doc) => ({
+    const invoices = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    res.json(data);
+    res.json(invoices);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch Error:", err);
+    res.status(500).json({ error: "Failed to fetch invoices" });
   }
 });
 
-// ✅ Check renewals
-app.get("/check-renewals", async (req, res) => {
+// 💰 MARK INVOICE AS PAID
+app.put("/pay-invoice/:id", verifyToken, async (req, res) => {
   try {
-    const snapshot = await db.collection("invoices").get();
-    const today = new Date();
+    const docRef = db.collection("invoices").doc(req.params.id);
+    const doc = await docRef.get();
 
-    const due = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-      .filter(
-        (inv) =>
-          new Date(inv.renewalDate) <= today &&
-          inv.status !== "Paid"
-      );
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
 
-    res.json({ due });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    // 🔐 Ownership check
+    if (doc.data().userId !== req.user.uid) {
+      return res.status(403).json({ error: "Unauthorized access" });
+    }
 
-// ✅ Mark as paid
-app.put("/pay-invoice/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-
-    await db.collection("invoices").doc(id).update({
+    await docRef.update({
       status: "Paid",
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Payment Error:", err);
+    res.status(500).json({ error: "Failed to update invoice" });
   }
 });
 
-// 🚀 Start server
+// ❤️ HEALTH CHECK (important for Render)
+app.get("/", (req, res) => {
+  res.send("Invoice API Running 🚀");
+});
+
+// 🚀 START SERVER
+const PORT = process.env.PORT || 5001;
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+const cron = require("node-cron");
+
+// ⏰ RUN DAILY AT 9 AM
+cron.schedule("0 9 * * *", async () => {
+  console.log("Running recurring invoice job...");
+
+  const today = new Date().toISOString().split("T")[0];
+
+  try {
+    const snapshot = await db
+      .collection("invoices")
+      .where("renewalDate", "==", today)
+      .get();
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+
+      const start = new Date(data.renewalDate);
+
+      // next month
+      const nextStart = new Date(start);
+      const nextEnd = new Date(start);
+
+      nextEnd.setMonth(nextEnd.getMonth() + 1);
+
+      const diffDays = Math.ceil(
+        (nextEnd - nextStart) / (1000 * 60 * 60 * 24)
+      );
+
+      const amount = Number(((data.price / 30) * diffDays).toFixed(2));
+
+      await db.collection("invoices").add({
+        userId: data.userId,
+        customer: data.customer,
+        price: data.price,
+        amount,
+        status: "Pending",
+        startDate: nextStart.toISOString().split("T")[0],
+        renewalDate: nextEnd.toISOString().split("T")[0],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        isAutoGenerated: true,
+      });
+
+      console.log(`Created recurring invoice for ${data.customer}`);
+    }
+  } catch (err) {
+    console.error("Cron Error:", err);
+  }
 });
