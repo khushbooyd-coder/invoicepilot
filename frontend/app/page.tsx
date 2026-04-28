@@ -13,6 +13,8 @@ export default function Home() {
   const [filter, setFilter] = useState("all");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
 
   const [form, setForm] = useState({
     customer: "",
@@ -23,8 +25,12 @@ export default function Home() {
 
   // 🔐 LOGIN
   const login = async () => {
-    const result = await signInWithPopup(auth, provider);
-    setUser(result.user);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      setUser(result.user);
+    } catch (err) {
+      setError("Login failed");
+    }
   };
 
   // 🔁 Persist login
@@ -41,64 +47,89 @@ export default function Home() {
 
   // 🔄 LOAD DATA
   const loadData = async (currentUser: User) => {
-    const token = await currentUser.getIdToken();
+    try {
+      const token = await currentUser.getIdToken();
 
-    const res = await fetch(
-      "https://invoicepilot-6g3a.onrender.com/invoices",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+      const res = await fetch(
+        "https://invoicepilot-6g3a.onrender.com/invoices",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-    const data = await res.json();
-    setInvoices(data);
+      const data = await res.json();
+      setInvoices(data);
+    } catch {
+      setError("Failed to load invoices");
+    }
   };
 
   // ➕ CREATE
   const handleCreate = async () => {
     if (!user) return;
 
-    const token = await user.getIdToken();
+    // ✅ Validation
+    if (!form.customer || !form.price || !form.startDate || !form.renewalDate) {
+      setError("Please fill all fields");
+      return;
+    }
 
-    await fetch(
-      "https://invoicepilot-6g3a.onrender.com/add-license",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(form),
-      }
-    );
+    setCreating(true);
+    setError("");
 
-    setForm({
-      customer: "",
-      price: "",
-      startDate: "",
-      renewalDate: "",
-    });
+    try {
+      const token = await user.getIdToken();
 
-    loadData(user);
+      await fetch(
+        "https://invoicepilot-6g3a.onrender.com/add-license",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(form),
+        }
+      );
+
+      setForm({
+        customer: "",
+        price: "",
+        startDate: "",
+        renewalDate: "",
+      });
+
+      loadData(user);
+    } catch {
+      setError("Failed to create invoice");
+    }
+
+    setCreating(false);
   };
 
   // 💰 PAY
   const markPaid = async (id: string) => {
-    const token = await user?.getIdToken();
+    if (!user) return;
 
-    await fetch(
-      `https://invoicepilot-6g3a.onrender.com/pay-invoice/${id}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    try {
+      const token = await user.getIdToken();
 
-    if (user) loadData(user);
+      await fetch(
+        `https://invoicepilot-6g3a.onrender.com/pay-invoice/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      loadData(user);
+    } catch {
+      setError("Failed to update invoice");
+    }
   };
 
   if (loading) {
@@ -128,41 +159,51 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black to-gray-900 text-white p-6">
+    <div className="min-h-screen bg-black text-white p-6 max-w-6xl mx-auto">
       
       {/* HEADER */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">
-          📊 Invoice Dashboard
-        </h1>
+        <div>
+          <h1 className="text-3xl font-bold">📊 Invoice Dashboard</h1>
+          <p className="text-gray-400 text-sm">Track and manage invoices</p>
+        </div>
 
         {!user ? (
           <button
             onClick={login}
             className="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded-lg font-semibold"
           >
-            Login
+            🔐 Login
           </button>
         ) : (
-          <div className="text-sm text-gray-300">
+          <div className="bg-gray-800 px-4 py-2 rounded-lg text-sm">
             👋 {user.displayName}
           </div>
         )}
       </div>
 
+      {/* ERROR */}
+      {error && (
+        <div className="bg-red-600/20 border border-red-500 text-red-400 p-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
       {/* STATS */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-gray-800 p-4 rounded-xl shadow">
+      <div className="grid md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-gray-900 border border-gray-800 p-5 rounded-xl">
           <p className="text-gray-400">Total</p>
-          <h2 className="text-xl">{invoices.length}</h2>
+          <h2 className="text-2xl font-bold">{invoices.length}</h2>
         </div>
-        <div className="bg-yellow-600 p-4 rounded-xl shadow">
-          <p>Due</p>
-          <h2 className="text-xl">{dueInvoices.length}</h2>
+
+        <div className="bg-yellow-600/20 border border-yellow-500/30 p-5 rounded-xl">
+          <p className="text-yellow-300">Due</p>
+          <h2 className="text-2xl font-bold">{dueInvoices.length}</h2>
         </div>
-        <div className="bg-green-600 p-4 rounded-xl shadow">
-          <p>Paid</p>
-          <h2 className="text-xl">
+
+        <div className="bg-green-600/20 border border-green-500/30 p-5 rounded-xl">
+          <p className="text-green-300">Paid</p>
+          <h2 className="text-2xl font-bold">
             {invoices.filter(i => i.status === "Paid").length}
           </h2>
         </div>
@@ -174,7 +215,7 @@ export default function Home() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`mr-3 px-4 py-2 rounded-lg ${
+            className={`mr-3 mb-2 px-4 py-2 rounded-lg ${
               filter === f
                 ? "bg-blue-600"
                 : "bg-gray-700 hover:bg-gray-600"
@@ -187,20 +228,19 @@ export default function Home() {
 
       {/* CREATE */}
       {user && (
-        <div className="bg-gray-800 p-6 rounded-xl mb-6 shadow-lg">
-          <h2 className="mb-4 text-lg font-semibold">
-            ➕ Create Invoice
-          </h2>
+        <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl mb-8">
+          <h2 className="mb-4 text-lg font-semibold">➕ Create Invoice</h2>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid md:grid-cols-4 gap-3">
             <input
               placeholder="Customer"
               value={form.customer}
               onChange={(e) =>
                 setForm({ ...form, customer: e.target.value })
               }
-              className="input"
+              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
             />
+
             <input
               type="number"
               placeholder="Price"
@@ -208,31 +248,34 @@ export default function Home() {
               onChange={(e) =>
                 setForm({ ...form, price: e.target.value })
               }
-              className="input"
+              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
             />
+
             <input
               type="date"
               value={form.startDate}
               onChange={(e) =>
                 setForm({ ...form, startDate: e.target.value })
               }
-              className="input"
+              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
             />
+
             <input
               type="date"
               value={form.renewalDate}
               onChange={(e) =>
                 setForm({ ...form, renewalDate: e.target.value })
               }
-              className="input"
+              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
             />
           </div>
 
           <button
             onClick={handleCreate}
-            className="mt-4 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg"
+            disabled={creating}
+            className="mt-4 bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg font-semibold"
           >
-            Create
+            {creating ? "Creating..." : "Create"}
           </button>
         </div>
       )}
@@ -247,38 +290,27 @@ export default function Home() {
           return (
             <div
               key={inv.id}
-              className={`p-4 rounded-xl shadow ${
+              className={`p-5 rounded-xl border ${
                 overdue
-                  ? "bg-red-900 border border-red-500"
-                  : "bg-gray-800"
+                  ? "bg-red-900/20 border-red-500/30"
+                  : "bg-gray-900 border-gray-800"
               }`}
             >
-              <h3 className="font-semibold text-lg">
-                {inv.customer}
-              </h3>
+              <div className="flex justify-between">
+                <h3 className="font-semibold">{inv.customer}</h3>
+                <span className="text-sm">{inv.status}</span>
+              </div>
 
-              <p>₹{inv.amount}</p>
+              <p className="text-xl font-bold mt-2">₹{inv.amount}</p>
 
-              <p
-                className={`text-sm ${
-                  inv.status === "Paid"
-                    ? "text-green-400"
-                    : "text-yellow-400"
-                }`}
-              >
-                {inv.status}
+              <p className="text-xs text-gray-400 mt-2">
+                {inv.startDate} → {inv.renewalDate}
               </p>
-
-              {overdue && (
-                <p className="text-red-400 text-sm">
-                  ⚠️ Overdue
-                </p>
-              )}
 
               <button
                 onClick={() => markPaid(inv.id)}
                 disabled={inv.status === "Paid"}
-                className="mt-2 px-3 py-1 bg-green-600 rounded"
+                className="mt-3 bg-green-600 px-3 py-1 rounded"
               >
                 Mark Paid
               </button>
@@ -286,6 +318,12 @@ export default function Home() {
           );
         })}
       </div>
+
+      {filteredInvoices.length === 0 && (
+        <p className="text-center text-gray-400 mt-10">
+          No invoices yet
+        </p>
+      )}
     </div>
   );
 }

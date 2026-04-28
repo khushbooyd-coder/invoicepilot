@@ -3,7 +3,13 @@ const cors = require("cors");
 const admin = require("firebase-admin");
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://invoicepilot-git-main-khushbooyd-coders-projects.vercel.app"
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // 🔐 Firebase Admin Setup
