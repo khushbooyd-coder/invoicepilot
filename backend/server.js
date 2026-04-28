@@ -200,3 +200,69 @@ cron.schedule("0 9 * * *", async () => {
     console.error("Cron Error:", err);
   }
 });
+
+
+//update/edit invoice
+app.put("/update-invoice/:id", verifyToken, async (req, res) => {
+  try {
+    const { customer, price, startDate, renewalDate } = req.body;
+
+    if (!customer || !price || !startDate || !renewalDate) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const docRef = db.collection("invoices").doc(req.params.id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (doc.data().userId !== req.user.uid) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const numericPrice = Number(price);
+    const diffDays = Math.ceil(
+      (new Date(renewalDate) - new Date(startDate)) /
+      (1000 * 60 * 60 * 24)
+    );
+
+    const amount = Number(((numericPrice / 30) * diffDays).toFixed(2));
+
+    await docRef.update({
+      customer,
+      price: numericPrice,
+      amount,
+      startDate,
+      renewalDate,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Update failed" });
+  }
+});
+
+
+//delete
+app.delete("/delete-invoice/:id", verifyToken, async (req, res) => {
+  try {
+    const docRef = db.collection("invoices").doc(req.params.id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (doc.data().userId !== req.user.uid) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    await docRef.delete();
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Delete failed" });
+  }
+});

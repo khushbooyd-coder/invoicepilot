@@ -15,6 +15,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState<any | null>(null);
 
   const [form, setForm] = useState({
     customer: "",
@@ -28,7 +29,7 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       setUser(result.user);
-    } catch (err) {
+    } catch {
       setError("Login failed");
     }
   };
@@ -47,24 +48,32 @@ export default function Home() {
 
   // 🔄 LOAD DATA
   const loadData = async (currentUser: User) => {
-    try {
-      const token = await currentUser.getIdToken();
+  try {
+    const token = await currentUser.getIdToken();
 
-      const res = await fetch(
-        "https://invoicepilot-6g3a.onrender.com/invoices",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+    const res = await fetch(
+      "https://invoicepilot-6g3a.onrender.com/invoices",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
-      const data = await res.json();
+    const data = await res.json();
+
+    // ✅ SAFETY CHECK
+    if (Array.isArray(data)) {
       setInvoices(data);
-    } catch {
-      setError("Failed to load invoices");
+    } else {
+      setInvoices([]);
+      setError("Invalid data from server");
     }
-  };
+
+  } catch {
+    setError("Failed to load invoices");
+  }
+};
 
   // ➕ CREATE
   const handleCreate = async () => {
@@ -132,6 +141,57 @@ export default function Home() {
     }
   };
 
+  // ✏️ UPDATE
+  const handleUpdate = async () => {
+  if (!user || !editing) return;
+
+  try {
+    const token = await user.getIdToken();
+console.log("Sending update:", editing);
+    await fetch(
+      `https://invoicepilot-6g3a.onrender.com/update-invoice/${editing.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customer: editing.customer,
+          price: Number(editing.price),
+          startDate: editing.startDate,
+          renewalDate: editing.renewalDate,
+        }),
+      }
+    );
+
+    setEditing(null);
+    loadData(user);
+  } catch {
+    setError("Update failed");
+  }
+};
+  // 🗑️ DELETE
+  const deleteInvoice = async (id: string) => {
+    if (!user) return;
+
+    if (!confirm("Delete this invoice?")) return;
+
+    const token = await user.getIdToken();
+
+    await fetch(
+      `https://invoicepilot-6g3a.onrender.com/delete-invoice/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    loadData(user);
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-black text-white">
@@ -142,41 +202,42 @@ export default function Home() {
 
   const today = new Date();
 
-  const dueInvoices = invoices.filter(
-    (inv) =>
-      new Date(inv.renewalDate) <= today &&
-      inv.status !== "Paid"
-  );
+  const dueInvoices = Array.isArray(invoices)
+  ? invoices.filter(
+      (inv) =>
+        new Date(inv.renewalDate) <= today &&
+        inv.status !== "Paid"
+    )
+  : [];
 
-  const filteredInvoices = invoices.filter((inv) => {
-    const overdue =
-      new Date(inv.renewalDate) <= today &&
-      inv.status !== "Paid";
+  const filteredInvoices = Array.isArray(invoices)
+  ? invoices.filter((inv) => {
+      const overdue =
+        new Date(inv.renewalDate) <= today &&
+        inv.status !== "Paid";
 
-    if (filter === "due") return overdue;
-    if (filter === "paid") return inv.status === "Paid";
-    return true;
-  });
+      if (filter === "due") return overdue;
+      if (filter === "paid") return inv.status === "Paid";
+      return true;
+    })
+  : [];
 
   return (
     <div className="min-h-screen bg-black text-white p-6 max-w-6xl mx-auto">
       
       {/* HEADER */}
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">📊 Invoice Dashboard</h1>
-          <p className="text-gray-400 text-sm">Track and manage invoices</p>
-        </div>
+        <h1 className="text-3xl font-bold">📊 Invoice Dashboard</h1>
 
         {!user ? (
           <button
             onClick={login}
-            className="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded-lg font-semibold"
+            className="bg-yellow-500 px-4 py-2 rounded-lg"
           >
-            🔐 Login
+            Login
           </button>
         ) : (
-          <div className="bg-gray-800 px-4 py-2 rounded-lg text-sm">
+          <div className="bg-gray-800 px-4 py-2 rounded">
             👋 {user.displayName}
           </div>
         )}
@@ -184,28 +245,15 @@ export default function Home() {
 
       {/* ERROR */}
       {error && (
-        <div className="bg-red-600/20 border border-red-500 text-red-400 p-3 rounded mb-4">
-          {error}
-        </div>
+        <div className="bg-red-600 p-3 rounded mb-4">{error}</div>
       )}
 
       {/* STATS */}
-      <div className="grid md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-gray-900 border border-gray-800 p-5 rounded-xl">
-          <p className="text-gray-400">Total</p>
-          <h2 className="text-2xl font-bold">{invoices.length}</h2>
-        </div>
-
-        <div className="bg-yellow-600/20 border border-yellow-500/30 p-5 rounded-xl">
-          <p className="text-yellow-300">Due</p>
-          <h2 className="text-2xl font-bold">{dueInvoices.length}</h2>
-        </div>
-
-        <div className="bg-green-600/20 border border-green-500/30 p-5 rounded-xl">
-          <p className="text-green-300">Paid</p>
-          <h2 className="text-2xl font-bold">
-            {invoices.filter(i => i.status === "Paid").length}
-          </h2>
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-gray-900 p-4 rounded">Total: {invoices.length}</div>
+        <div className="bg-yellow-700 p-4 rounded">Due: {dueInvoices.length}</div>
+        <div className="bg-green-700 p-4 rounded">
+          Paid: {invoices.filter(i => i.status === "Paid").length}
         </div>
       </div>
 
@@ -228,102 +276,138 @@ export default function Home() {
 
       {/* CREATE */}
       {user && (
-        <div className="bg-gray-900 border border-gray-800 p-6 rounded-xl mb-8">
-          <h2 className="mb-4 text-lg font-semibold">➕ Create Invoice</h2>
+        <div className="bg-gray-900 p-4 rounded mb-6">
+          <input placeholder="Customer" value={form.customer}
+            onChange={(e)=>setForm({...form,customer:e.target.value})} className="mr-2 p-2" />
 
-          <div className="grid md:grid-cols-4 gap-3">
-            <input
-              placeholder="Customer"
-              value={form.customer}
-              onChange={(e) =>
-                setForm({ ...form, customer: e.target.value })
-              }
-              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-            />
+          <input type="number" placeholder="Price" value={form.price}
+            onChange={(e)=>setForm({...form,price:e.target.value})} className="mr-2 p-2" />
 
-            <input
-              type="number"
-              placeholder="Price"
-              value={form.price}
-              onChange={(e) =>
-                setForm({ ...form, price: e.target.value })
-              }
-              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-            />
+          <input type="date" value={form.startDate}
+            onChange={(e)=>setForm({...form,startDate:e.target.value})} className="mr-2 p-2" />
 
-            <input
-              type="date"
-              value={form.startDate}
-              onChange={(e) =>
-                setForm({ ...form, startDate: e.target.value })
-              }
-              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-            />
+          <input type="date" value={form.renewalDate}
+            onChange={(e)=>setForm({...form,renewalDate:e.target.value})} className="mr-2 p-2" />
 
-            <input
-              type="date"
-              value={form.renewalDate}
-              onChange={(e) =>
-                setForm({ ...form, renewalDate: e.target.value })
-              }
-              className="bg-gray-800 border border-gray-700 rounded px-3 py-2"
-            />
-          </div>
-
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="mt-4 bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg font-semibold"
-          >
+          <button onClick={handleCreate} className="bg-blue-600 px-3 py-2 rounded">
             {creating ? "Creating..." : "Create"}
           </button>
         </div>
       )}
 
       {/* LIST */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {filteredInvoices.map((inv) => {
-          const overdue =
-            new Date(inv.renewalDate) <= today &&
-            inv.status !== "Paid";
+<div className="grid md:grid-cols-2 gap-4">
+  {Array.isArray(filteredInvoices) &&
+    filteredInvoices.map((inv) => {
+      const overdue =
+        new Date(inv.renewalDate) <= today &&
+        inv.status !== "Paid";
 
-          return (
-            <div
-              key={inv.id}
-              className={`p-5 rounded-xl border ${
-                overdue
-                  ? "bg-red-900/20 border-red-500/30"
-                  : "bg-gray-900 border-gray-800"
+      return (
+        <div
+          key={inv.id}
+          className="bg-gray-900 border border-gray-800 p-5 rounded-xl shadow-md hover:shadow-lg transition"
+        >
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">{inv.customer}</h3>
+            <span
+              className={`text-xs px-2 py-1 rounded ${
+                inv.status === "Paid"
+                  ? "bg-green-600"
+                  : "bg-yellow-600"
               }`}
             >
-              <div className="flex justify-between">
-                <h3 className="font-semibold">{inv.customer}</h3>
-                <span className="text-sm">{inv.status}</span>
-              </div>
+              {inv.status}
+            </span>
+          </div>
 
-              <p className="text-xl font-bold mt-2">₹{inv.amount}</p>
+          <p className="text-2xl font-bold mt-2">₹{inv.amount}</p>
 
-              <p className="text-xs text-gray-400 mt-2">
-                {inv.startDate} → {inv.renewalDate}
-              </p>
+          <p className="text-xs text-gray-400 mt-1">
+            {inv.startDate} → {inv.renewalDate}
+          </p>
 
-              <button
-                onClick={() => markPaid(inv.id)}
-                disabled={inv.status === "Paid"}
-                className="mt-3 bg-green-600 px-3 py-1 rounded"
-              >
-                Mark Paid
-              </button>
-            </div>
-          );
-        })}
-      </div>
+          {/* OPTIONAL overdue */}
+          {overdue && (
+            <p className="text-red-400 text-xs mt-1">
+              ⚠️ Overdue
+            </p>
+          )}
 
-      {filteredInvoices.length === 0 && (
-        <p className="text-center text-gray-400 mt-10">
-          No invoices yet
-        </p>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => markPaid(inv.id)}
+              disabled={inv.status === "Paid"}
+              className={`px-3 py-1 rounded text-sm ${
+                inv.status === "Paid"
+                  ? "bg-gray-600 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-500"
+              }`}
+            >
+              Paid
+            </button>
+
+            <button
+              onClick={() => setEditing(inv)}
+              className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm"
+            >
+              Edit
+            </button>
+
+            <button
+              onClick={() => deleteInvoice(inv.id)}
+              className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      );
+    })}
+</div>
+
+{/* EMPTY STATE */}
+{Array.isArray(filteredInvoices) && filteredInvoices.length === 0 && (
+  <p className="text-center text-gray-400 mt-6">
+    No invoices found
+  </p>
+)}
+      
+
+      {/* EDIT MODAL */}
+      {editing && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
+          <div className="bg-gray-900 p-6 rounded ">
+           <input
+              value={editing?.customer || ""}
+              onChange={(e)=>setEditing({...editing,customer:e.target.value})}
+              className="w-full mb-2 p-2"
+            />
+
+            <input
+              type="number"
+              value={editing?.price || ""}
+              onChange={(e)=>setEditing({...editing,price:e.target.value})}
+              className="w-full mb-2 p-2"
+            />
+
+            <input type="date" value={editing.startDate}
+              onChange={(e)=>setEditing({...editing,startDate:e.target.value})} className="w-full mb-2 p-2" />
+
+            <input type="date" value={editing.renewalDate}
+              onChange={(e)=>setEditing({...editing,renewalDate:e.target.value})} className="w-full mb-2 p-2" />
+
+            <button onClick={handleUpdate} className="bg-blue-600 px-3 py-2 mr-2">
+              Update
+            </button>
+
+            <button onClick={()=>setEditing(null)} className="bg-gray-600 px-3 py-2">
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
+    
   );
 }
