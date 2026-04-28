@@ -48,33 +48,38 @@ export default function Home() {
 
   // 🔄 LOAD DATA
   const loadData = async (currentUser: User) => {
-  try {
-    const token = await currentUser.getIdToken();
+        try {
+          const token = await currentUser.getIdToken();
 
-    const res = await fetch(
-      "https://invoicepilot-6g3a.onrender.com/invoices",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+          const res = await fetch(
+            "https://invoicepilot-6g3a.onrender.com/invoices",
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
 
-    const data = await res.json();
+          if (!res.ok) {
+            throw new Error("Request failed: " + res.status);
+          }
 
-    // ✅ SAFETY CHECK
-    if (Array.isArray(data)) {
-      setInvoices(data);
-    } else {
-      setInvoices([]);
-      setError("Invalid data from server");
-    }
+          const data = await res.json();
 
-  } catch {
-    setError("Failed to load invoices");
-  }
-};
+          if (Array.isArray(data)) {
+            setInvoices(data);
+          } else {
+            setInvoices([]);
+            setError("Invalid data from server");
+          }
 
+        } catch (err) {
+          console.error(err);
+          setError("Failed to load invoices");
+        }
+      };
+      
   // ➕ CREATE
   const handleCreate = async () => {
     if (!user) return;
@@ -96,7 +101,6 @@ export default function Home() {
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(form),
