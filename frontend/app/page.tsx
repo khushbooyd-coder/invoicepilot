@@ -345,18 +345,26 @@ export default function Home() {
         <p className="text-green-400 font-bold">
           ₹{Number(inv.amount).toFixed(2)}
         </p>
+        <p className="text-sm text-yellow-400">
+          {inv.status}
+        </p>
 
         <p className="text-sm text-gray-400">
-          {inv.startDate} → {inv.renewalDate}
+          {new Date(inv.startDate).toLocaleDateString("en-IN")} → {new Date(inv.renewalDate).toLocaleDateString("en-IN")}
         </p>
 
         <div className="flex gap-2 mt-3">
           <button
-            onClick={() => markPaid(inv.id)}
-            className="bg-green-600 px-3 py-1 rounded"
-          >
-            Paid
-          </button>
+          onClick={() => markPaid(inv.id)}
+          disabled={inv.status === "Paid"}
+          className={`px-3 py-1 rounded ${
+            inv.status === "Paid"
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-green-600"
+          }`}
+        >
+          {inv.status === "Paid" ? "Paid" : "Mark Paid"}
+        </button>
 
           <button
             onClick={() => setEditing(inv)}
@@ -419,7 +427,7 @@ export default function Home() {
     />
 
     <button
-      className="bg-green-600 px-3 py-2 rounded"
+      className="bg-green-600 px-4 py-2 rounded ml-2"
       onClick={handleUpdate}
     >
       Update
