@@ -29,6 +29,7 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       setUser(result.user);
+      loadData(result.user);
     } catch {
       setError("Login failed");
     }
@@ -99,11 +100,13 @@ export default function Home() {
 
       if (end <= start) {
         setError("Renewal date must be after start date");
+        setCreating(false);
         return;
       }
 
       if (start < new Date(new Date().toDateString())) {
         setError("Start date cannot be in the past");
+        setCreating(false);
         return;
       }
 
@@ -350,12 +353,12 @@ export default function Home() {
         </p>
 
         <p className="text-sm text-gray-400">
-          new Date(inv.startDate).toLocaleDateString("en-IN", {
+        {new Date(inv.startDate).toLocaleDateString("en-IN", {
           day: "2-digit",
           month: "short",
-          year: "numeric"
-        }) → {new Date(inv.renewalDate).toLocaleDateString("en-IN")}
-        </p>
+          year: "numeric",
+        })} → {new Date(inv.renewalDate).toLocaleDateString("en-IN")}
+      </p>
 
         <div className="flex gap-2 mt-3">
           <button
@@ -424,7 +427,7 @@ export default function Home() {
       type="date"
       className="mr-2 p-2 bg-gray-700"
       value={editing.renewalDate}
-      min={editing.startDate}
+      min={editing.startDate || new Date().toISOString().split("T")[0]}
       onChange={(e) =>
         setEditing({ ...editing, renewalDate: e.target.value })
       }
