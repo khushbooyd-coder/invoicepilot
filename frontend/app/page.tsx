@@ -357,7 +357,11 @@ export default function Home() {
           day: "2-digit",
           month: "short",
           year: "numeric",
-        })} → {new Date(inv.renewalDate).toLocaleDateString("en-IN")}
+        })} → {new Date(inv.renewalDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })}
       </p>
 
         <div className="flex gap-2 mt-3">
