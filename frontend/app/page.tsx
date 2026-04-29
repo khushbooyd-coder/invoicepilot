@@ -88,22 +88,27 @@ export default function Home() {
     try {
       const token = await user.getIdToken();
 
-      await fetch(
-        "https://invoicepilot-6g3a.onrender.com/add-license",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+      const amount =
+        (Number(form.price) / 30) *
+        Math.ceil(
+          (new Date(form.renewalDate).getTime() -
+            new Date(form.startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
+      await fetch("https://invoicepilot-6g3a.onrender.com/add-license", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
           customer: form.customer,
-          amount: Number(form.price), // ✅ FIX
+          amount, // ✅ IMPORTANT FIX
           startDate: form.startDate,
           renewalDate: form.renewalDate,
         }),
-        }
-      );
+      });
 
       setForm({
         customer: "",
@@ -151,6 +156,14 @@ export default function Home() {
     try {
       const token = await user.getIdToken();
 
+      const amount =
+        (Number(editing.price) / 30) *
+        Math.ceil(
+          (new Date(editing.renewalDate).getTime() -
+            new Date(editing.startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
       await fetch(
         `https://invoicepilot-6g3a.onrender.com/update-invoice/${editing.id}`,
         {
@@ -160,11 +173,11 @@ export default function Home() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-          customer: editing.customer,
-          amount: Number(editing.price), // ✅ FIX
-          startDate: editing.startDate,
-          renewalDate: editing.renewalDate,
-        }),
+            customer: editing.customer,
+            amount, // ✅ FIX
+            startDate: editing.startDate,
+            renewalDate: editing.renewalDate,
+          }),
         }
       );
 
@@ -284,7 +297,7 @@ export default function Home() {
       {filteredInvoices.map((inv) => (
         <div key={inv.id}>
           <h3>{inv.customer}</h3>
-          <p>₹{inv.amount}</p>
+          <p>₹{inv.amount || 0}</p>
 
           <button onClick={()=>markPaid(inv.id)}>Paid</button>
           <button onClick={()=>setEditing(inv)}>Edit</button>
@@ -294,16 +307,53 @@ export default function Home() {
 
       {/* EDIT */}
       {editing && (
-        <div>
-          <input value={editing.customer}
-            onChange={(e)=>setEditing({...editing,customer:e.target.value})} />
+  <div className="mt-6 p-4 bg-gray-800 rounded">
+    <h3 className="mb-3">Edit Invoice</h3>
 
-          <input value={editing.price}
-            onChange={(e)=>setEditing({...editing,price:e.target.value})} />
+    <input
+      className="mr-2 p-2 bg-gray-700"
+      value={editing.customer}
+      onChange={(e) =>
+        setEditing({ ...editing, customer: e.target.value })
+      }
+    />
 
-          <button onClick={handleUpdate}>Update</button>
-        </div>
-      )}
+    <input
+      className="mr-2 p-2 bg-gray-700"
+      type="number"
+      placeholder="Price"
+      value={editing.price || ""}
+      onChange={(e) =>
+        setEditing({ ...editing, price: e.target.value })
+      }
+    />
+
+    <input
+      className="mr-2 p-2 bg-gray-700"
+      type="date"
+      value={editing.startDate}
+      onChange={(e) =>
+        setEditing({ ...editing, startDate: e.target.value })
+      }
+    />
+
+    <input
+      className="mr-2 p-2 bg-gray-700"
+      type="date"
+      value={editing.renewalDate}
+      onChange={(e) =>
+        setEditing({ ...editing, renewalDate: e.target.value })
+      }
+    />
+
+    <button
+      className="bg-green-600 px-3 py-2 rounded"
+      onClick={handleUpdate}
+    >
+      Update
+    </button>
+  </div>
+)}
 
     </div>
   );
