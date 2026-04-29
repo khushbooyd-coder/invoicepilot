@@ -343,14 +343,18 @@ export default function Home() {
         <p className="text-sm text-gray-400">ID: {inv.id}</p>
 
         <p className="text-green-400 font-bold">
-          ₹{Number(inv.amount).toFixed(2)}
+          ₹{Number(inv.price ?? inv.amount).toFixed(2)}
         </p>
         <p className="text-sm text-yellow-400">
           {inv.status}
         </p>
 
         <p className="text-sm text-gray-400">
-          {new Date(inv.startDate).toLocaleDateString("en-IN")} → {new Date(inv.renewalDate).toLocaleDateString("en-IN")}
+          new Date(inv.startDate).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric"
+        }) → {new Date(inv.renewalDate).toLocaleDateString("en-IN")}
         </p>
 
         <div className="flex gap-2 mt-3">
