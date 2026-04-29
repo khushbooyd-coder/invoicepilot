@@ -74,62 +74,65 @@ export default function Home() {
   };
 
   // ➕ CREATE
-  if (!form.price || Number(form.price) <= 0) {
-  return alert("Enter valid price");
-}
+  
   const handleCreate = async () => {
-    if (!user) return;
+  if (!user) return;
 
-    if (!form.customer || !form.price || !form.startDate || !form.renewalDate) {
-      setError("Please fill all fields");
-      return;
-    }
+  if (!form.customer || !form.price || !form.startDate || !form.renewalDate) {
+    setError("Please fill all fields");
+    return;
+  }
 
-    setCreating(true);
-    setError("");
+  if (Number(form.price) <= 0) {
+    setError("Enter valid price");
+    return;
+  }
 
-    try {
-      const token = await user.getIdToken();
+  setCreating(true);
+  setError("");
 
-      const start = new Date(form.startDate);
-        const end = new Date(form.renewalDate);
+  try {
+    const token = await user.getIdToken();
 
-        const diffDays = Math.max(
-          1,
-          Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-        );
+    const start = new Date(form.startDate);
+    const end = new Date(form.renewalDate);
 
-        const amount = Number(form.price) * (diffDays / 30);
+    const diffDays = Math.max(
+      1,
+      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    );
 
-      await fetch("https://invoicepilot-6g3a.onrender.com/add-license", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          customer: form.customer,
-          amount, // ✅ IMPORTANT FIX
-          startDate: form.startDate,
-          renewalDate: form.renewalDate,
-        }),
-      });
+    const amount = Number(form.price) * (diffDays / 30);
 
-      setForm({
-        customer: "",
-        price: "",
-        startDate: "",
-        renewalDate: "",
-      });
+    await fetch("https://invoicepilot-6g3a.onrender.com/add-license", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        customer: form.customer,
+        amount,
+        startDate: form.startDate,
+        renewalDate: form.renewalDate,
+      }),
+    });
 
-      loadData(user);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to create invoice");
-    }
+    setForm({
+      customer: "",
+      price: "",
+      startDate: "",
+      renewalDate: "",
+    });
 
-    setCreating(false);
-  };
+    loadData(user);
+  } catch (err) {
+    console.error(err);
+    setError("Failed to create invoice");
+  }
+
+  setCreating(false);
+};
 
   // 💰 PAY
   const markPaid = async (id: string) => {
@@ -347,7 +350,7 @@ export default function Home() {
       className="mr-2 p-2 bg-gray-700"
       type="number"
       placeholder="Price"
-      value={editing.price || ""}
+      value={editing.price || editing.amount || ""}
       onChange={(e) =>
         setEditing({ ...editing, price: e.target.value })
       }
