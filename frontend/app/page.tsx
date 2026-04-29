@@ -95,7 +95,17 @@ export default function Home() {
     const token = await user.getIdToken();
 
     const start = new Date(form.startDate);
-    const end = new Date(form.renewalDate);
+      const end = new Date(form.renewalDate);
+
+      if (end <= start) {
+        setError("Renewal date must be after start date");
+        return;
+      }
+
+      if (start < new Date(new Date().toDateString())) {
+        setError("Start date cannot be in the past");
+        return;
+      }
 
     const diffDays = Math.max(
       1,
@@ -165,7 +175,12 @@ export default function Home() {
     const token = await user.getIdToken();
 
     const start = new Date(editing.startDate);
-    const end = new Date(editing.renewalDate);
+      const end = new Date(editing.renewalDate);
+
+      if (end <= start) {
+        setError("Invalid date range");
+        return;
+      }
 
     const diffDays = Math.max(
       1,
@@ -289,13 +304,25 @@ export default function Home() {
           <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" type="number" placeholder="Price" value={form.price}
             onChange={(e)=>setForm({...form,price:e.target.value})} />
 
-          <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" type="date" value={form.startDate}
-            onChange={(e)=>setForm({...form,startDate:e.target.value})} />
+          <input
+          type="date"
+          min={new Date().toISOString().split("T")[0]}
+          value={form.startDate}
+          onChange={(e) =>
+            setForm({ ...form, startDate: e.target.value })
+          }
+        />
 
-          <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" type="date" value={form.renewalDate}
-            onChange={(e)=>setForm({...form,renewalDate:e.target.value})} />
-
-          <button onClick={handleCreate}>
+        <input
+          type="date"
+          min={form.startDate || new Date().toISOString().split("T")[0]}
+          value={form.renewalDate}
+          onChange={(e) =>
+            setForm({ ...form, renewalDate: e.target.value })
+          }
+        />
+          <button onClick={handleCreate} 
+          className="bg-blue-600 px-4 py-2 rounded ml-2">
             {creating ? "Creating..." : "Create"}
           </button>
         </div>
@@ -365,25 +392,27 @@ export default function Home() {
       className="mr-2 p-2 bg-gray-700"
       type="number"
       placeholder="Price"
-      value={editing.price || editing.amount || ""}
+      value={editing.price ?? ""}
       onChange={(e) =>
         setEditing({ ...editing, price: e.target.value })
       }
     />
 
     <input
-      className="mr-2 p-2 bg-gray-700"
       type="date"
+      className="mr-2 p-2 bg-gray-700"
       value={editing.startDate}
+      min={new Date().toISOString().split("T")[0]}
       onChange={(e) =>
         setEditing({ ...editing, startDate: e.target.value })
       }
     />
 
     <input
-      className="mr-2 p-2 bg-gray-700"
       type="date"
+      className="mr-2 p-2 bg-gray-700"
       value={editing.renewalDate}
+      min={editing.startDate}
       onChange={(e) =>
         setEditing({ ...editing, renewalDate: e.target.value })
       }

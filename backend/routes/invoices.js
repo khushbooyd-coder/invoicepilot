@@ -6,21 +6,27 @@ const verifyToken = require("../middleware/auth");
 // ➕ CREATE
 router.post("/add-license", verifyToken, async (req, res) => {
   try {
-    const { customer, amount, price, startDate, renewalDate } = req.body;
+    const { customer, amount, startDate, renewalDate } = req.body;
 
     if (!customer || !amount || !startDate || !renewalDate) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
+    const start = new Date(startDate);
+    const end = new Date(renewalDate);
+
+    if (end <= start) {
+      return res.status(400).json({ error: "Invalid date range" });
+    }
+
     const doc = await db.collection("invoices").add({
       userId: req.user.uid,
-        customer,
-        price: Number(price), // ✅ ADD THIS
-        amount: Number(amount),
-        status: "Pending",
-        startDate,
-        renewalDate,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      customer,
+      amount: Number(amount),
+      status: "Pending",
+      startDate,
+      renewalDate,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.json({ id: doc.id });
