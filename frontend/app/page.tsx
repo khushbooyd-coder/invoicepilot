@@ -74,6 +74,9 @@ export default function Home() {
   };
 
   // ➕ CREATE
+  if (!form.price || Number(form.price) <= 0) {
+  return alert("Enter valid price");
+}
   const handleCreate = async () => {
     if (!user) return;
 
@@ -88,13 +91,15 @@ export default function Home() {
     try {
       const token = await user.getIdToken();
 
-      const amount =
-        (Number(form.price) / 30) *
-        Math.ceil(
-          (new Date(form.renewalDate).getTime() -
-            new Date(form.startDate).getTime()) /
-            (1000 * 60 * 60 * 24)
+      const start = new Date(form.startDate);
+        const end = new Date(form.renewalDate);
+
+        const diffDays = Math.max(
+          1,
+          Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
         );
+
+        const amount = Number(form.price) * (diffDays / 30);
 
       await fetch("https://invoicepilot-6g3a.onrender.com/add-license", {
         method: "POST",
@@ -269,6 +274,7 @@ export default function Home() {
       </div>
 
       {/* CREATE */}
+      
       {user && (
         <div className="mb-6">
           <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" placeholder="Customer" value={form.customer}
@@ -297,11 +303,30 @@ export default function Home() {
       {filteredInvoices.map((inv) => (
         <div key={inv.id}>
           <h3>{inv.customer}</h3>
-          <p>₹{inv.amount || 0}</p>
+          <p>₹{Number(inv.amount).toFixed(2)}</p>
 
-          <button onClick={()=>markPaid(inv.id)}>Paid</button>
-          <button onClick={()=>setEditing(inv)}>Edit</button>
-          <button onClick={()=>deleteInvoice(inv.id)}>Delete</button>
+          <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => markPaid(inv.id)}
+                className="bg-green-600 px-3 py-1 rounded"
+              >
+                Paid
+              </button>
+
+              <button
+                onClick={() => setEditing(inv)}
+                className="bg-yellow-500 px-3 py-1 rounded"
+              >
+                Edit
+              </button>
+
+              <button
+                onClick={() => deleteInvoice(inv.id)}
+                className="bg-red-600 px-3 py-1 rounded"
+              >
+                Delete
+              </button>
+            </div>
         </div>
       ))}
 
