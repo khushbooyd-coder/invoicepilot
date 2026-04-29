@@ -47,44 +47,36 @@ export default function Home() {
   }, []);
 
   // 🔄 LOAD DATA
-  const loadData = async (currentUser: User) => {
-        try {
-          const token = await currentUser.getIdToken();
+  const loadData = async (user: User) => {
+    try {
+      const token = await user.getIdToken();
 
-          const res = await fetch(
-            "https://invoicepilot-6g3a.onrender.com/invoices",
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-
-          if (!res.ok) {
-            throw new Error("Request failed: " + res.status);
-          }
-
-          const data = await res.json();
-
-          if (Array.isArray(data)) {
-            setInvoices(data);
-          } else {
-            setInvoices([]);
-            setError("Invalid data from server");
-          }
-
-        } catch (err) {
-          console.error(err);
-          setError("Failed to load invoices");
+      const res = await fetch(
+        "https://invoicepilot-6g3a.onrender.com/invoices",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      };
-      
+      );
+
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        setInvoices(data);
+      } else {
+        setInvoices([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load invoices");
+    }
+  };
+
   // ➕ CREATE
   const handleCreate = async () => {
     if (!user) return;
 
-    // ✅ Validation
     if (!form.customer || !form.price || !form.startDate || !form.renewalDate) {
       setError("Please fill all fields");
       return;
@@ -101,9 +93,15 @@ export default function Home() {
         {
           method: "POST",
           headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+          customer: form.customer,
+          amount: Number(form.price), // ✅ FIX
+          startDate: form.startDate,
+          renewalDate: form.renewalDate,
+        }),
         }
       );
 
@@ -115,7 +113,8 @@ export default function Home() {
       });
 
       loadData(user);
-    } catch {
+    } catch (err) {
+      console.error(err);
       setError("Failed to create invoice");
     }
 
@@ -147,53 +146,58 @@ export default function Home() {
 
   // ✏️ UPDATE
   const handleUpdate = async () => {
-  if (!user || !editing) return;
+    if (!user || !editing) return;
 
-  try {
-    const token = await user.getIdToken();
-console.log("Sending update:", editing);
-    await fetch(
-      `https://invoicepilot-6g3a.onrender.com/update-invoice/${editing.id}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+    try {
+      const token = await user.getIdToken();
+
+      await fetch(
+        `https://invoicepilot-6g3a.onrender.com/update-invoice/${editing.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
           customer: editing.customer,
-          price: Number(editing.price),
+          amount: Number(editing.price), // ✅ FIX
           startDate: editing.startDate,
           renewalDate: editing.renewalDate,
         }),
-      }
-    );
+        }
+      );
 
-    setEditing(null);
-    loadData(user);
-  } catch {
-    setError("Update failed");
-  }
-};
-  // 🗑️ DELETE
+      setEditing(null);
+      loadData(user);
+    } catch {
+      setError("Update failed");
+    }
+  };
+
+  // 🗑 DELETE
   const deleteInvoice = async (id: string) => {
     if (!user) return;
 
     if (!confirm("Delete this invoice?")) return;
 
-    const token = await user.getIdToken();
+    try {
+      const token = await user.getIdToken();
 
-    await fetch(
-      `https://invoicepilot-6g3a.onrender.com/delete-invoice/${id}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+      await fetch(
+        `https://invoicepilot-6g3a.onrender.com/delete-invoice/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-    loadData(user);
+      loadData(user);
+    } catch {
+      setError("Delete failed");
+    }
   };
 
   if (loading) {
@@ -206,38 +210,25 @@ console.log("Sending update:", editing);
 
   const today = new Date();
 
-  const dueInvoices = Array.isArray(invoices)
-  ? invoices.filter(
-      (inv) =>
-        new Date(inv.renewalDate) <= today &&
-        inv.status !== "Paid"
-    )
-  : [];
+  const filteredInvoices = invoices.filter((inv) => {
+    const overdue =
+      new Date(inv.renewalDate) <= today &&
+      inv.status !== "Paid";
 
-  const filteredInvoices = Array.isArray(invoices)
-  ? invoices.filter((inv) => {
-      const overdue =
-        new Date(inv.renewalDate) <= today &&
-        inv.status !== "Paid";
-
-      if (filter === "due") return overdue;
-      if (filter === "paid") return inv.status === "Paid";
-      return true;
-    })
-  : [];
+    if (filter === "due") return overdue;
+    if (filter === "paid") return inv.status === "Paid";
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-black text-white p-6 max-w-6xl mx-auto">
-      
+
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between mb-8">
         <h1 className="text-3xl font-bold">📊 Invoice Dashboard</h1>
 
         {!user ? (
-          <button
-            onClick={login}
-            className="bg-yellow-500 px-4 py-2 rounded-lg"
-          >
+          <button onClick={login} className="bg-yellow-500 px-4 py-2 rounded">
             Login
           </button>
         ) : (
@@ -247,19 +238,7 @@ console.log("Sending update:", editing);
         )}
       </div>
 
-      {/* ERROR */}
-      {error && (
-        <div className="bg-red-600 p-3 rounded mb-4">{error}</div>
-      )}
-
-      {/* STATS */}
-      <div className="grid md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gray-900 p-4 rounded">Total: {invoices.length}</div>
-        <div className="bg-yellow-700 p-4 rounded">Due: {dueInvoices.length}</div>
-        <div className="bg-green-700 p-4 rounded">
-          Paid: {invoices.filter(i => i.status === "Paid").length}
-        </div>
-      </div>
+      {error && <div className="bg-red-600 p-3 mb-4">{error}</div>}
 
       {/* FILTER */}
       <div className="mb-6">
@@ -267,10 +246,8 @@ console.log("Sending update:", editing);
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`mr-3 mb-2 px-4 py-2 rounded-lg ${
-              filter === f
-                ? "bg-blue-600"
-                : "bg-gray-700 hover:bg-gray-600"
+            className={`mr-3 px-4 py-2 rounded ${
+              filter === f ? "bg-blue-600" : "bg-gray-700"
             }`}
           >
             {f.toUpperCase()}
@@ -280,138 +257,54 @@ console.log("Sending update:", editing);
 
       {/* CREATE */}
       {user && (
-        <div className="bg-gray-900 p-4 rounded mb-6">
-          <input placeholder="Customer" value={form.customer}
-            onChange={(e)=>setForm({...form,customer:e.target.value})} className="mr-2 p-2" />
+        <div className="mb-6">
+          <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" placeholder="Customer" value={form.customer}
+            onChange={(e)=>setForm({...form,customer:e.target.value})} />
 
-          <input type="number" placeholder="Price" value={form.price}
-            onChange={(e)=>setForm({...form,price:e.target.value})} className="mr-2 p-2" />
+          <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" type="number" placeholder="Price" value={form.price}
+            onChange={(e)=>setForm({...form,price:e.target.value})} />
 
-          <input type="date" value={form.startDate}
-            onChange={(e)=>setForm({...form,startDate:e.target.value})} className="mr-2 p-2" />
+          <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" type="date" value={form.startDate}
+            onChange={(e)=>setForm({...form,startDate:e.target.value})} />
 
-          <input type="date" value={form.renewalDate}
-            onChange={(e)=>setForm({...form,renewalDate:e.target.value})} className="mr-2 p-2" />
+          <input className="bg-gray-800 border border-gray-600 p-2 mr-2 rounded" type="date" value={form.renewalDate}
+            onChange={(e)=>setForm({...form,renewalDate:e.target.value})} />
 
-          <button onClick={handleCreate} className="bg-blue-600 px-3 py-2 rounded">
+          <button onClick={handleCreate}>
             {creating ? "Creating..." : "Create"}
           </button>
         </div>
       )}
 
       {/* LIST */}
-<div className="grid md:grid-cols-2 gap-4">
-  {Array.isArray(filteredInvoices) &&
-    filteredInvoices.map((inv) => {
-      const overdue =
-        new Date(inv.renewalDate) <= today &&
-        inv.status !== "Paid";
+      {filteredInvoices.length === 0 && (
+        <p>No invoices found</p>
+      )}
 
-      return (
-        <div
-          key={inv.id}
-          className="bg-gray-900 border border-gray-800 p-5 rounded-xl shadow-md hover:shadow-lg transition"
-        >
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">{inv.customer}</h3>
-            <span
-              className={`text-xs px-2 py-1 rounded ${
-                inv.status === "Paid"
-                  ? "bg-green-600"
-                  : "bg-yellow-600"
-              }`}
-            >
-              {inv.status}
-            </span>
-          </div>
+      {filteredInvoices.map((inv) => (
+        <div key={inv.id}>
+          <h3>{inv.customer}</h3>
+          <p>₹{inv.amount}</p>
 
-          <p className="text-2xl font-bold mt-2">₹{inv.amount}</p>
-
-          <p className="text-xs text-gray-400 mt-1">
-            {inv.startDate} → {inv.renewalDate}
-          </p>
-
-          {/* OPTIONAL overdue */}
-          {overdue && (
-            <p className="text-red-400 text-xs mt-1">
-              ⚠️ Overdue
-            </p>
-          )}
-
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => markPaid(inv.id)}
-              disabled={inv.status === "Paid"}
-              className={`px-3 py-1 rounded text-sm ${
-                inv.status === "Paid"
-                  ? "bg-gray-600 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-500"
-              }`}
-            >
-              Paid
-            </button>
-
-            <button
-              onClick={() => setEditing(inv)}
-              className="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm"
-            >
-              Edit
-            </button>
-
-            <button
-              onClick={() => deleteInvoice(inv.id)}
-              className="bg-red-600 hover:bg-red-500 px-3 py-1 rounded text-sm"
-            >
-              Delete
-            </button>
-          </div>
+          <button onClick={()=>markPaid(inv.id)}>Paid</button>
+          <button onClick={()=>setEditing(inv)}>Edit</button>
+          <button onClick={()=>deleteInvoice(inv.id)}>Delete</button>
         </div>
-      );
-    })}
-</div>
+      ))}
 
-{/* EMPTY STATE */}
-{Array.isArray(filteredInvoices) && filteredInvoices.length === 0 && (
-  <p className="text-center text-gray-400 mt-6">
-    No invoices found
-  </p>
-)}
-      
-
-      {/* EDIT MODAL */}
+      {/* EDIT */}
       {editing && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center">
-          <div className="bg-gray-900 p-6 rounded ">
-           <input
-              value={editing?.customer || ""}
-              onChange={(e)=>setEditing({...editing,customer:e.target.value})}
-              className="w-full mb-2 p-2"
-            />
+        <div>
+          <input value={editing.customer}
+            onChange={(e)=>setEditing({...editing,customer:e.target.value})} />
 
-            <input
-              type="number"
-              value={editing?.price || ""}
-              onChange={(e)=>setEditing({...editing,price:e.target.value})}
-              className="w-full mb-2 p-2"
-            />
+          <input value={editing.price}
+            onChange={(e)=>setEditing({...editing,price:e.target.value})} />
 
-            <input type="date" value={editing.startDate}
-              onChange={(e)=>setEditing({...editing,startDate:e.target.value})} className="w-full mb-2 p-2" />
-
-            <input type="date" value={editing.renewalDate}
-              onChange={(e)=>setEditing({...editing,renewalDate:e.target.value})} className="w-full mb-2 p-2" />
-
-            <button onClick={handleUpdate} className="bg-blue-600 px-3 py-2 mr-2">
-              Update
-            </button>
-
-            <button onClick={()=>setEditing(null)} className="bg-gray-600 px-3 py-2">
-              Cancel
-            </button>
-          </div>
+          <button onClick={handleUpdate}>Update</button>
         </div>
       )}
+
     </div>
-    
   );
 }

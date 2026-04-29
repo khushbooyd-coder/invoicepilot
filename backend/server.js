@@ -1,267 +1,48 @@
 const express = require("express");
 const cors = require("cors");
-const admin = require("firebase-admin");
+require("dotenv").config();
+
+const invoiceRoutes = require("./routes/invoices");
 
 const app = express();
+
+// 1. DYNAMIC CORS (Fixed)
+// Vercel creates unique URLs for every push. This logic allows any 
+// Vercel deployment from your account to access the backend.
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "https://invoicepilot-xi.vercel.app"
-  ],
-  credentials: true
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      "http://localhost:3000",
+      "https://invoicepilot-xi.vercel.app"
+    ];
+    
+    // Check if origin is in the list OR is a Vercel preview URL
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
 app.use(express.json());
 
-// 🔐 Firebase Admin Setup
-const serviceAccount = require("./firebase-key.json");
+// 2. ROUTES
+app.use("/", invoiceRoutes);
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
-
-const db = admin.firestore();
-
-// 🔐 VERIFY TOKEN MIDDLEWARE
-const verifyToken = async (req, res, next) => {
-  try {
-    const header = req.headers.authorization;
-
-    if (!header || !header.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "No token provided" });
-    }
-
-    const token = header.split(" ")[1];
-    const decoded = await admin.auth().verifyIdToken(token);
-
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: "Invalid token" });
-  }
-};
-
-// ➕ CREATE INVOICE
-app.post("/add-license", verifyToken, async (req, res) => {
-  try {
-    const { price, startDate, renewalDate, customer } = req.body;
-
-    // ✅ Validation
-    if (!price || !startDate || !renewalDate || !customer) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    if (new Date(renewalDate) <= new Date(startDate)) {
-      return res.status(400).json({ error: "Renewal must be after start date" });
-    }
-
-    const numericPrice = Number(price);
-
-    if (isNaN(numericPrice) || numericPrice <= 0) {
-      return res.status(400).json({ error: "Invalid price" });
-    }
-
-    // 📅 Calculate duration
-    const diffDays = Math.ceil(
-      (new Date(renewalDate) - new Date(startDate)) /
-        (1000 * 60 * 60 * 24)
-    );
-
-    if (diffDays <= 0) {
-      return res.status(400).json({ error: "Invalid duration" });
-    }
-
-    // 💰 Calculate amount
-    const amount = Number(((numericPrice / 30) * diffDays).toFixed(2));
-
-    // 📦 Save to Firestore
-    const doc = await db.collection("invoices").add({
-      userId: req.user.uid,
-      customer,
-      price: numericPrice,
-      amount,
-      status: "Pending",
-      startDate,
-      renewalDate,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    res.json({ id: doc.id });
-  } catch (err) {
-    console.error("Add License Error:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// 📥 GET ALL INVOICES (USER-SPECIFIC)
-app.get("/invoices", verifyToken, async (req, res) => {
-  try {
-    const snapshot = await db
-  .collection("invoices")
-  .where("userId", "==", req.user.uid)
-  .get();
-
-    const invoices = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    res.json(invoices);
-  } catch (err) {
-    console.error("Fetch Error:", err);
-    res.status(500).json({ error: "Failed to fetch invoices" });
-  }
-});
-
-// 💰 MARK INVOICE AS PAID
-app.put("/pay-invoice/:id", verifyToken, async (req, res) => {
-  try {
-    const docRef = db.collection("invoices").doc(req.params.id);
-    const doc = await docRef.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-
-    // 🔐 Ownership check
-    if (doc.data().userId !== req.user.uid) {
-      return res.status(403).json({ error: "Unauthorized access" });
-    }
-
-    await docRef.update({
-      status: "Paid",
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Payment Error:", err);
-    res.status(500).json({ error: "Failed to update invoice" });
-  }
-});
-
-// ❤️ HEALTH CHECK (important for Render)
+// Health check endpoint
 app.get("/", (req, res) => {
-  res.send("Invoice API Running 🚀");
+  res.send("API Running 🚀");
 });
 
-// 🚀 START SERVER
-const PORT = process.env.PORT || 5001;
+// 3. DYNAMIC PORT (Fixed)
+// Render.com uses a dynamic port. This line ensures the app 
+// listens on the port assigned by the environment.
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-const cron = require("node-cron");
-
-// ⏰ RUN DAILY AT 9 AM
-cron.schedule("0 9 * * *", async () => {
-  console.log("Running recurring invoice job...");
-
-  const today = new Date().toISOString().split("T")[0];
-
-  try {
-    const snapshot = await db
-      .collection("invoices")
-      .where("renewalDate", "==", today)
-      .get();
-
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
-
-      const start = new Date(data.renewalDate);
-
-      // next month
-      const nextStart = new Date(start);
-      const nextEnd = new Date(start);
-
-      nextEnd.setMonth(nextEnd.getMonth() + 1);
-
-      const diffDays = Math.ceil(
-        (nextEnd - nextStart) / (1000 * 60 * 60 * 24)
-      );
-
-      const amount = Number(((data.price / 30) * diffDays).toFixed(2));
-
-      await db.collection("invoices").add({
-        userId: data.userId,
-        customer: data.customer,
-        price: data.price,
-        amount,
-        status: "Pending",
-        startDate: nextStart.toISOString().split("T")[0],
-        renewalDate: nextEnd.toISOString().split("T")[0],
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        isAutoGenerated: true,
-      });
-
-      console.log(`Created recurring invoice for ${data.customer}`);
-    }
-  } catch (err) {
-    console.error("Cron Error:", err);
-  }
-});
-
-
-//update/edit invoice
-app.put("/update-invoice/:id", verifyToken, async (req, res) => {
-  try {
-    const { customer, price, startDate, renewalDate } = req.body;
-
-    if (!customer || !price || !startDate || !renewalDate) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const docRef = db.collection("invoices").doc(req.params.id);
-    const doc = await docRef.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-
-    if (doc.data().userId !== req.user.uid) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    const numericPrice = Number(price);
-    const diffDays = Math.ceil(
-      (new Date(renewalDate) - new Date(startDate)) /
-      (1000 * 60 * 60 * 24)
-    );
-
-    const amount = Number(((numericPrice / 30) * diffDays).toFixed(2));
-
-    await docRef.update({
-      customer,
-      price: numericPrice,
-      amount,
-      startDate,
-      renewalDate,
-    });
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Update failed" });
-  }
-});
-
-
-//delete
-app.delete("/delete-invoice/:id", verifyToken, async (req, res) => {
-  try {
-    const docRef = db.collection("invoices").doc(req.params.id);
-    const doc = await docRef.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
-
-    if (doc.data().userId !== req.user.uid) {
-      return res.status(403).json({ error: "Unauthorized" });
-    }
-
-    await docRef.delete();
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Delete failed" });
-  }
+  console.log(`Server is live on port ${PORT}`);
 });
