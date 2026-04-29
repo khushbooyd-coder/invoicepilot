@@ -6,7 +6,7 @@ const verifyToken = require("../middleware/auth");
 // ➕ CREATE
 router.post("/add-license", verifyToken, async (req, res) => {
   try {
-    const { customer, amount, startDate, renewalDate } = req.body;
+    const { customer, amount, price, startDate, renewalDate } = req.body;
 
     if (!customer || !amount || !startDate || !renewalDate) {
       return res.status(400).json({ error: "Missing fields" });
@@ -14,12 +14,13 @@ router.post("/add-license", verifyToken, async (req, res) => {
 
     const doc = await db.collection("invoices").add({
       userId: req.user.uid,
-      customer,
-      amount: Number(amount),
-      status: "Pending",
-      startDate,
-      renewalDate,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        customer,
+        price: Number(price), // ✅ ADD THIS
+        amount: Number(amount),
+        status: "Pending",
+        startDate,
+        renewalDate,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.json({ id: doc.id });
@@ -57,7 +58,13 @@ router.put("/update-invoice/:id", verifyToken, async (req, res) => {
       return res.status(403).json({ error: "Unauthorized" });
     }
 
-    await docRef.update(req.body);
+      await docRef.update({
+      customer: req.body.customer,
+      price: Number(req.body.price), // ✅ ADD
+      amount: Number(req.body.amount),
+      startDate: req.body.startDate,
+      renewalDate: req.body.renewalDate,
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Update failed" });

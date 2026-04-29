@@ -159,42 +159,45 @@ export default function Home() {
 
   // ✏️ UPDATE
   const handleUpdate = async () => {
-    if (!user || !editing) return;
+  if (!user || !editing) return;
 
-    try {
-      const token = await user.getIdToken();
+  try {
+    const token = await user.getIdToken();
 
-      const amount =
-        (Number(editing.price) / 30) *
-        Math.ceil(
-          (new Date(editing.renewalDate).getTime() -
-            new Date(editing.startDate).getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
+    const start = new Date(editing.startDate);
+    const end = new Date(editing.renewalDate);
 
-      await fetch(
-        `https://invoicepilot-6g3a.onrender.com/update-invoice/${editing.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            customer: editing.customer,
-            amount, // ✅ FIX
-            startDate: editing.startDate,
-            renewalDate: editing.renewalDate,
-          }),
-        }
-      );
+    const diffDays = Math.max(
+      1,
+      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    );
 
-      setEditing(null);
-      loadData(user);
-    } catch {
-      setError("Update failed");
-    }
-  };
+    const amount = Number(editing.price) * (diffDays / 30);
+
+    await fetch(
+      `https://invoicepilot-6g3a.onrender.com/update-invoice/${editing.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          customer: editing.customer,
+          price: Number(editing.price), // ✅ IMPORTANT
+          amount,
+          startDate: editing.startDate,
+          renewalDate: editing.renewalDate,
+        }),
+      }
+    );
+
+    setEditing(null);
+    loadData(user);
+  } catch {
+    setError("Update failed");
+  }
+};
 
   // 🗑 DELETE
   const deleteInvoice = async (id: string) => {
@@ -304,33 +307,45 @@ export default function Home() {
       )}
 
       {filteredInvoices.map((inv) => (
-        <div key={inv.id}>
-          <h3>{inv.customer}</h3>
-          <p>₹{Number(inv.amount).toFixed(2)}</p>
+              <div
+        key={inv.id}
+        className="bg-gray-900 border border-gray-700 p-4 rounded-lg mb-4"
+      >
+        <h3 className="text-lg font-semibold">{inv.customer}</h3>
 
-          <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => markPaid(inv.id)}
-                className="bg-green-600 px-3 py-1 rounded"
-              >
-                Paid
-              </button>
+        <p className="text-sm text-gray-400">ID: {inv.id}</p>
 
-              <button
-                onClick={() => setEditing(inv)}
-                className="bg-yellow-500 px-3 py-1 rounded"
-              >
-                Edit
-              </button>
+        <p className="text-green-400 font-bold">
+          ₹{Number(inv.amount).toFixed(2)}
+        </p>
 
-              <button
-                onClick={() => deleteInvoice(inv.id)}
-                className="bg-red-600 px-3 py-1 rounded"
-              >
-                Delete
-              </button>
-            </div>
+        <p className="text-sm text-gray-400">
+          {inv.startDate} → {inv.renewalDate}
+        </p>
+
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => markPaid(inv.id)}
+            className="bg-green-600 px-3 py-1 rounded"
+          >
+            Paid
+          </button>
+
+          <button
+            onClick={() => setEditing(inv)}
+            className="bg-yellow-500 px-3 py-1 rounded"
+          >
+            Edit
+          </button>
+
+          <button
+            onClick={() => deleteInvoice(inv.id)}
+            className="bg-red-600 px-3 py-1 rounded"
+          >
+            Delete
+          </button>
         </div>
+      </div>
       ))}
 
       {/* EDIT */}
