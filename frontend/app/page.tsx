@@ -252,15 +252,32 @@ export default function Home() {
 
   const today = new Date();
 
-  const filteredInvoices = invoices.filter((inv) => {
-    const overdue =
-      new Date(inv.renewalDate) <= today &&
-      inv.status !== "Paid";
+  // 📊 STATS
+    const total = invoices.reduce(
+      (sum, inv) => sum + Number(inv.price ?? inv.amount),
+      0
+    );
 
-    if (filter === "due") return overdue;
-    if (filter === "paid") return inv.status === "Paid";
-    return true;
-  });
+    const paid = invoices
+      .filter((i) => i.status === "Paid")
+      .reduce((sum, i) => sum + Number(i.price ?? i.amount), 0);
+
+    const due = invoices
+      .filter((i) => i.status !== "Paid")
+      .reduce((sum, i) => sum + Number(i.price ?? i.amount), 0);
+
+      //filtering logic
+      const filteredInvoices = invoices.filter((inv) => {
+      const overdue =
+        new Date(inv.renewalDate) <= today &&
+        inv.status !== "Paid";
+
+      if (filter === "due") return overdue;
+      if (filter === "paid") return inv.status === "Paid";
+      return true;
+    });
+
+        
 
   return (
     <div className="min-h-screen bg-black text-white p-6 max-w-6xl mx-auto">
@@ -281,6 +298,30 @@ export default function Home() {
       </div>
 
       {error && <div className="bg-red-600 p-3 mb-4">{error}</div>}
+
+        {/* 📊 STATS */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-gray-800 p-4 rounded">
+          <p className="text-gray-400">Total Revenue</p>
+          <p className="text-xl font-bold text-green-400">
+            ₹{total.toFixed(2)}
+          </p>
+        </div>
+
+        <div className="bg-gray-800 p-4 rounded">
+          <p className="text-gray-400">Paid</p>
+          <p className="text-xl font-bold text-blue-400">
+            ₹{paid.toFixed(2)}
+          </p>
+        </div>
+
+        <div className="bg-gray-800 p-4 rounded">
+          <p className="text-gray-400">Pending</p>
+          <p className="text-xl font-bold text-red-400">
+            ₹{due.toFixed(2)}
+          </p>
+        </div>
+      </div>
 
       {/* FILTER */}
       <div className="mb-6">
