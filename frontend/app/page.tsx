@@ -7,6 +7,7 @@ import {
   User,
 } from "firebase/auth";
 import { auth, provider } from "../firebase";
+import jsPDF from "jspdf";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -276,7 +277,24 @@ export default function Home() {
       if (filter === "paid") return inv.status === "Paid";
       return true;
     });
+    
+      
+      const downloadInvoice = (inv: any) => {
+      const doc = new jsPDF();
 
+      doc.setFontSize(16);
+      doc.text("Invoice", 20, 20);
+
+      doc.setFontSize(12);
+      doc.text(`Customer: ${inv.customer}`, 20, 40);
+      doc.text(`Amount: ₹${inv.price ?? inv.amount}`, 20, 50);
+      doc.text(`Status: ${inv.status}`, 20, 60);
+
+      doc.text(`Start: ${inv.startDate}`, 20, 80);
+      doc.text(`End: ${inv.renewalDate}`, 20, 90);
+
+      doc.save(`invoice-${inv.id}.pdf`);
+    };
         
 
   return (
@@ -378,7 +396,7 @@ export default function Home() {
       )}
 
       {filteredInvoices.map((inv) => (
-              <div
+      <div
         key={inv.id}
         className="bg-gray-900 border border-gray-700 p-4 rounded-lg mb-4"
       >
@@ -407,16 +425,16 @@ export default function Home() {
 
         <div className="flex gap-2 mt-3">
           <button
-          onClick={() => markPaid(inv.id)}
-          disabled={inv.status === "Paid"}
-          className={`px-3 py-1 rounded ${
-            inv.status === "Paid"
-              ? "bg-gray-600 cursor-not-allowed"
-              : "bg-green-600"
-          }`}
-        >
-          {inv.status === "Paid" ? "Paid" : "Mark Paid"}
-        </button>
+            onClick={() => markPaid(inv.id)}
+            disabled={inv.status === "Paid"}
+            className={`px-3 py-1 rounded ${
+              inv.status === "Paid"
+                ? "bg-gray-600 cursor-not-allowed"
+                : "bg-green-600"
+            }`}
+          >
+            {inv.status === "Paid" ? "Paid" : "Mark Paid"}
+          </button>
 
           <button
             onClick={() => setEditing(inv)}
@@ -430,6 +448,14 @@ export default function Home() {
             className="bg-red-600 px-3 py-1 rounded"
           >
             Delete
+          </button>
+
+          {/* ✅ ADD THIS */}
+          <button
+            onClick={() => downloadInvoice(inv)}
+            className="bg-blue-500 px-3 py-1 rounded"
+          >
+            PDF
           </button>
         </div>
       </div>
