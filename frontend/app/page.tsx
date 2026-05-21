@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import {
   signInWithPopup,
   onAuthStateChanged,
+  signOut,
   User,
 } from "firebase/auth";
 import { auth, provider } from "../firebase";
 import jsPDF from "jspdf";
+
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
@@ -35,6 +37,15 @@ export default function Home() {
       setError("Login failed");
     }
   };
+
+  // 🔓 LOGOUT
+  const logout = async () => {
+  await signOut(auth);
+  setUser(null);
+};
+
+
+
 
   // 🔁 Persist login
   useEffect(() => {
@@ -309,8 +320,17 @@ export default function Home() {
             Login
           </button>
         ) : (
-          <div className="bg-gray-800 px-4 py-2 rounded">
-            👋 {user.displayName}
+          <div className="flex items-center gap-3">
+            <div className="bg-gray-800 px-4 py-2 rounded">
+              👋 {user.displayName}
+            </div>
+
+            <button
+              onClick={logout}
+              className="bg-red-600 px-4 py-2 rounded"
+            >
+              Logout
+            </button>
           </div>
         )}
       </div>
