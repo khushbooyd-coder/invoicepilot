@@ -42,9 +42,14 @@ const handleSave = async () => {
       }
     );
 
-    if (!res.ok) {
-      throw new Error("Failed to save customer");
-    }
+    const data = await res.json();
+
+        console.log("Status:", res.status);
+        console.log("Response:", data);
+
+        if (!res.ok) {
+        throw new Error(data.error || "Failed to save customer");
+        }
 
     setCustomer({
       name: "",
