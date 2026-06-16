@@ -57,7 +57,6 @@ router.get("/invoices", verifyToken, async (req, res) => {
     const snapshot = await db
       .collection("invoices")
       .where("userId", "==", req.user.uid)
-      .orderBy("createdAt", "desc")
       .get();
 
     const invoices = snapshot.docs.map((doc) => ({
