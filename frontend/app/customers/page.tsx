@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { auth } from "@/firebase";
 import AddCustomerModal from "@/components/customers/AddCustomerModal";
+import EditCustomerModal from "@/components/customers/EditCustomerModal";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [openModal, setOpenModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
 
   const loadCustomers = async () => {
     try {
@@ -17,7 +19,7 @@ export default function CustomersPage() {
           return;
         }
 
-        const token = await user.getIdToken(true);
+        const token = await user.getIdToken();
 
       const res = await fetch(
         "https://invoicepilot-6g3a.onrender.com/customers",
@@ -48,6 +50,34 @@ export default function CustomersPage() {
 
   return () => unsubscribe();
 }, []);
+
+
+const deleteCustomer = async (id: string) => {
+  if (!confirm("Delete this customer?")) return;
+
+  try {
+    const user = auth.currentUser;
+
+    if (!user) return;
+
+    const token = await user.getIdToken();
+
+    await fetch(
+      `https://invoicepilot-6g3a.onrender.com/customers/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    loadCustomers();
+  } catch (err) {
+    console.error(err);
+    alert("Unable to delete customer");
+  }
+};
 
   return (
     <div className="space-y-6">
@@ -99,9 +129,27 @@ export default function CustomersPage() {
 
                 <p>{customer.country}</p>
 
-                <span className="inline-block mt-2 bg-green-600 px-3 py-1 rounded-full text-sm">
-                  {customer.status}
-                </span>
+                <div className="flex items-center gap-3 mt-4">
+                  <span className="inline-block bg-green-600 px-3 py-1 rounded-full text-sm">
+                    {customer.status}
+                  </span>
+
+                  <div className="flex gap-2">
+                    <button
+                          onClick={() => setEditingCustomer(customer)}
+                          className="px-3 py-1 rounded bg-yellow-500 hover:bg-yellow-600"
+                        >
+                          Edit
+                        </button>
+
+                    <button
+                      onClick={() => deleteCustomer(customer.id)}
+                      className="px-3 py-1 rounded bg-red-600 hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -112,6 +160,13 @@ export default function CustomersPage() {
       <AddCustomerModal
         open={openModal}
         onClose={() => setOpenModal(false)}
+        onSaved={loadCustomers}
+      />
+
+      <EditCustomerModal
+        customer={editingCustomer}
+        open={editingCustomer !== null}
+        onClose={() => setEditingCustomer(null)}
         onSaved={loadCustomers}
       />
 
