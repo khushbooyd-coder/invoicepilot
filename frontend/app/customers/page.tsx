@@ -11,9 +11,13 @@ export default function CustomersPage() {
   const loadCustomers = async () => {
     try {
       const user = auth.currentUser;
-      if (!user) return;
 
-      const token = await user.getIdToken();
+        if (!user) {
+          console.log("No logged in user");
+          return;
+        }
+
+        const token = await user.getIdToken(true);
 
       const res = await fetch(
         "https://invoicepilot-6g3a.onrender.com/customers",
@@ -25,6 +29,7 @@ export default function CustomersPage() {
       );
 
       const data = await res.json();
+      console.log("Customers API:", data);
 
       if (Array.isArray(data)) {
         setCustomers(data);
@@ -35,8 +40,14 @@ export default function CustomersPage() {
   };
 
   useEffect(() => {
-    loadCustomers();
-  }, []);
+  const unsubscribe = auth.onAuthStateChanged((user) => {
+    if (user) {
+      loadCustomers();
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
 
   return (
     <div className="space-y-6">
