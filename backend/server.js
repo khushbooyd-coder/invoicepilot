@@ -5,6 +5,7 @@ require("dotenv").config();
 const invoiceRoutes = require("./routes/invoices");
 const customerRoutes = require("./routes/customers");
 const productRoutes = require("./routes/products");
+const orderRoutes = require("./routes/orders");
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use(invoiceRoutes);
 
 app.use(customerRoutes);
 app.use(productRoutes);
+app.use(orderRoutes);
 
 // Health check endpoint
 app.get("/", (req, res) => {
