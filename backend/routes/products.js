@@ -44,23 +44,28 @@ router.post("/products", verifyToken, async (req, res) => {
 //
 router.get("/products", verifyToken, async (req, res) => {
   try {
+    console.log("User:", req.user);
 
     const snapshot = await db
       .collection("products")
       .where("userId", "==", req.user.uid)
-      .orderBy("createdAt", "desc")
       .get();
 
-    const products = snapshot.docs.map(doc => ({
+    const products = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
+    console.log("Products:", products);
+
     res.json(products);
 
   } catch (err) {
+    console.error("GET PRODUCTS ERROR:", err);
+
     res.status(500).json({
-      error: err.message,
+      message: err.message,
+      stack: err.stack,
     });
   }
 });
