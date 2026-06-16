@@ -62,9 +62,9 @@ export default function EditInvoiceModal({
     loadData();
   }, [open, currentInvoice]);
 
-  if (!open || !invoice) return null;
+  
   useEffect(() => {
-  const subtotal = invoice.items.reduce(
+  const subtotal = (invoice.items || []).reduce(
     (sum: number, item: any) => sum + item.total,
     0
   );
@@ -82,10 +82,11 @@ export default function EditInvoiceModal({
     grandTotal,
   }));
 }, [
-  invoice.items,
-  invoice.tax,
-  invoice.discount,
+  invoice?.items,
+  invoice?.tax,
+  invoice?.discount,
 ]);
+if (!open || !invoice) return null;
 
 const updateItem = (
   index: number,
