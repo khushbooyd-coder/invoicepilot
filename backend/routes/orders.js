@@ -59,14 +59,16 @@ router.post("/orders", verifyToken, async (req, res) => {
 //
 router.get("/orders", verifyToken, async (req, res) => {
   try {
+    console.log("Loading orders for:", req.user.uid);
 
     const snapshot = await db
       .collection("orders")
       .where("userId", "==", req.user.uid)
-      .orderBy("createdAt", "desc")
       .get();
 
-    const orders = snapshot.docs.map(doc => ({
+    console.log("Found", snapshot.size, "orders");
+
+    const orders = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -74,6 +76,8 @@ router.get("/orders", verifyToken, async (req, res) => {
     res.json(orders);
 
   } catch (err) {
+    console.error("ORDERS ERROR:", err);
+
     res.status(500).json({
       error: err.message,
     });
