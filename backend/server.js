@@ -35,7 +35,6 @@ app.use(express.json());
 
 // 2. ROUTES
 app.use(invoiceRoutes);
-
 app.use(customerRoutes);
 app.use(productRoutes);
 app.use(orderRoutes);

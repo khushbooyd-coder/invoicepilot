@@ -4,34 +4,50 @@ const { db, admin } = require("../firebase");
 const verifyToken = require("../middleware/auth");
 
 // ➕ CREATE
-router.post("/add-license", verifyToken, async (req, res) => {
+router.post("/invoices", verifyToken, async (req, res) => {
   try {
-    const { customer, amount, startDate, renewalDate } = req.body;
+    const {
+      invoiceNo,
+      customerId,
+      customerName,
+      items,
+      subtotal,
+      tax,
+      discount,
+      grandTotal,
+      status,
+    } = req.body;
 
-    if (!customer || !amount || !startDate || !renewalDate) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(renewalDate);
-
-    if (end <= start) {
-      return res.status(400).json({ error: "Invalid date range" });
+    if (!customerId || !items || items.length === 0) {
+      return res.status(400).json({
+        error: "Missing invoice data",
+      });
     }
 
     const doc = await db.collection("invoices").add({
       userId: req.user.uid,
-      customer,
-      amount: Number(amount),
-      status: "Pending",
-      startDate,
-      renewalDate,
+      invoiceNo,
+      customerId,
+      customerName,
+      items,
+      subtotal,
+      tax,
+      discount,
+      grandTotal,
+      status: status || "Pending",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    res.json({ id: doc.id });
+    res.json({
+      success: true,
+      id: doc.id,
+    });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({
+      error: err.message,
+    });
   }
 });
 
@@ -41,6 +57,7 @@ router.get("/invoices", verifyToken, async (req, res) => {
     const snapshot = await db
       .collection("invoices")
       .where("userId", "==", req.user.uid)
+      .orderBy("createdAt", "desc")
       .get();
 
     const invoices = snapshot.docs.map((doc) => ({
@@ -65,11 +82,17 @@ router.put("/update-invoice/:id", verifyToken, async (req, res) => {
     }
 
       await docRef.update({
-      customer: req.body.customer,
-      price: Number(req.body.price), // ✅ ADD
-      amount: Number(req.body.amount),
-      startDate: req.body.startDate,
-      renewalDate: req.body.renewalDate,
+      customerId: req.body.customerId,
+      customerName: req.body.customerName,
+
+      items: req.body.items,
+
+      subtotal: req.body.subtotal,
+      tax: req.body.tax,
+      discount: req.body.discount,
+      grandTotal: req.body.grandTotal,
+
+      status: req.body.status,
     });
     res.json({ success: true });
   } catch (err) {
