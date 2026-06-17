@@ -25,9 +25,13 @@ export default function EditInvoiceModal({
     if (!open || !currentInvoice) return;
 
     setInvoice({
-      ...currentInvoice,
-      items: currentInvoice.items || [],
-    });
+  ...currentInvoice,
+  items: currentInvoice.items ?? [],
+  tax: currentInvoice.tax ?? 18,
+  discount: currentInvoice.discount ?? 0,
+  subtotal: currentInvoice.subtotal ?? 0,
+  grandTotal: currentInvoice.grandTotal ?? 0,
+});
 
     const loadData = async () => {
       const user = auth.currentUser;
@@ -63,18 +67,20 @@ export default function EditInvoiceModal({
   }, [open, currentInvoice]);
 
   
-  useEffect(() => {
-  const subtotal = (invoice.items || []).reduce(
+useEffect(() => {
+  if (!invoice) return;
+
+  const subtotal = (invoice.items ?? []).reduce(
     (sum: number, item: any) => sum + item.total,
     0
   );
 
-  const taxAmount = subtotal * (invoice.tax / 100);
+  const taxAmount = subtotal * ((invoice.tax ?? 0) / 100);
 
   const grandTotal =
     subtotal +
     taxAmount -
-    invoice.discount;
+    (invoice.discount ?? 0);
 
   setInvoice((prev: any) => ({
     ...prev,
@@ -82,6 +88,7 @@ export default function EditInvoiceModal({
     grandTotal,
   }));
 }, [
+  invoice,
   invoice?.items,
   invoice?.tax,
   invoice?.discount,
