@@ -1,30 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const zoho = require('../services/zoho');
 const { verifyToken } = require('../middleware/auth');
 
 router.use(verifyToken);
 
-// GET /api/customers?page=1
+const zohoReady = () =>
+  process.env.ZOHO_CLIENT_ID && process.env.ZOHO_CLIENT_ID !== 'placeholder';
+
 router.get('/', async (req, res) => {
+  if (!zohoReady()) return res.json({ customers: [], hasMore: false, total: 0 });
   try {
-    const { page = 1 } = req.query;
-    const result = await zoho.getCustomers(parseInt(page));
+    const zoho = require('../services/zoho');
+    const result = await zoho.getCustomers(parseInt(req.query.page) || 1);
     res.json(result);
   } catch (err) {
-    console.error('Customers fetch error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch customers', message: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/customers/:id
 router.get('/:id', async (req, res) => {
+  if (!zohoReady()) return res.status(503).json({ error: 'Zoho not connected' });
   try {
+    const zoho = require('../services/zoho');
     const customer = await zoho.getCustomerById(req.params.id);
     res.json({ customer });
   } catch (err) {
-    console.error('Customer fetch error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch customer', message: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
