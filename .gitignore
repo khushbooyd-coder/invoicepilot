@@ -6,3 +6,4 @@ dist
 frontend/.env.local
 firebase-key.json
 gws-service-account.json
+firebase.ts
