@@ -3,3 +3,6 @@ node_modules
 .next
 dist
 .DS_Store
+frontend/.env.local
+firebase-key.json
+gws-service-account.json

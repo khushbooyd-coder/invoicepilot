@@ -1,175 +1,92 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { auth } from "@/firebase";
-import AddCustomerModal from "@/components/customers/AddCustomerModal";
-import EditCustomerModal from "@/components/customers/EditCustomerModal";
+import { useEffect, useState } from 'react';
+import { getCustomers, USE_MOCK, type Customer } from '@/services/api';
+import { mockCustomers } from '@/services/mockData';
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [openModal, setOpenModal] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<any>(null);
-
-  const loadCustomers = async () => {
-    try {
-      const user = auth.currentUser;
-
-        if (!user) {
-          console.log("No logged in user");
-          return;
-        }
-
-        const token = await user.getIdToken();
-
-      const res = await fetch(
-        "https://invoicepilot-6g3a.onrender.com/customers",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await res.json();
-      console.log("Customers API:", data);
-
-      if (Array.isArray(data)) {
-        setCustomers(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+  const [search, setSearch]       = useState('');
 
   useEffect(() => {
-  const unsubscribe = auth.onAuthStateChanged((user) => {
-    if (user) {
-      loadCustomers();
-    }
-  });
-
-  return () => unsubscribe();
-}, []);
-
-
-const deleteCustomer = async (id: string) => {
-  if (!confirm("Delete this customer?")) return;
-
-  try {
-    const user = auth.currentUser;
-
-    if (!user) return;
-
-    const token = await user.getIdToken();
-
-    await fetch(
-      `https://invoicepilot-6g3a.onrender.com/customers/${id}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+    async function load() {
+      try {
+        if (USE_MOCK) {
+          setCustomers(mockCustomers);
+        } else {
+          const res = await getCustomers();
+          setCustomers(res.customers);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load customers');
+      } finally {
+        setLoading(false);
       }
-    );
+    }
+    load();
+  }, []);
 
-    loadCustomers();
-  } catch (err) {
-    console.error(err);
-    alert("Unable to delete customer");
-  }
-};
+  const filtered = customers.filter(c =>
+    c.contact_name.toLowerCase().includes(search.toLowerCase()) ||
+    c.email.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="space-y-6">
-
-      <div>
-        <h1 className="text-3xl font-bold">Customers</h1>
-        <p className="text-zinc-400">
-          Manage all your customers.
-        </p>
+    <div className="p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-white text-xl font-semibold">Customers</h1>
+        <input
+          type="text"
+          placeholder="Search customers..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="bg-gray-800 text-white text-sm rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-blue-500 w-64"
+        />
       </div>
 
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
-        <button
-          onClick={() => setOpenModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-lg"
-        >
-          + Add Customer
-        </button>
-      </div>
+      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {error   && <p className="text-red-400 text-sm">{error}</p>}
 
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
-
-        <h2 className="text-xl font-semibold mb-6">
-          Customer List
-        </h2>
-
-        {customers.length === 0 ? (
-          <p className="text-zinc-500">
-            No customers found.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {customers.map((customer) => (
-              <div
-                key={customer.id}
-                className="border border-zinc-700 rounded-lg p-4"
-              >
-                <h3 className="font-bold text-lg">
-                  {customer.name}
-                </h3>
-
-                <p>{customer.company}</p>
-
-                <p className="text-zinc-400">
-                  {customer.email}
-                </p>
-
-                <p>{customer.phone}</p>
-
-                <p>{customer.country}</p>
-
-                <div className="flex items-center gap-3 mt-4">
-                  <span className="inline-block bg-green-600 px-3 py-1 rounded-full text-sm">
-                    {customer.status}
-                  </span>
-
-                  <div className="flex gap-2">
-                    <button
-                          onClick={() => setEditingCustomer(customer)}
-                          className="px-3 py-1 rounded bg-yellow-500 hover:bg-yellow-600"
-                        >
-                          Edit
-                        </button>
-
-                    <button
-                      onClick={() => deleteCustomer(customer.id)}
-                      className="px-3 py-1 rounded bg-red-600 hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-      </div>
-
-      <AddCustomerModal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSaved={loadCustomers}
-      />
-
-      <EditCustomerModal
-        customer={editingCustomer}
-        open={editingCustomer !== null}
-        onClose={() => setEditingCustomer(null)}
-        onSaved={loadCustomers}
-      />
-
+      {!loading && !error && (
+        <div className="bg-gray-900 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase">
+                <th className="text-left p-4">Name</th>
+                <th className="text-left p-4">Email</th>
+                <th className="text-left p-4">Phone</th>
+                <th className="text-center p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-6 text-center text-gray-500">
+                    No customers found
+                  </td>
+                </tr>
+              ) : filtered.map(c => (
+                <tr key={c.contact_id} className="border-b border-gray-800 hover:bg-gray-800 transition-colors">
+                  <td className="p-4 text-white font-medium">{c.contact_name}</td>
+                  <td className="p-4 text-gray-400">{c.email}</td>
+                  <td className="p-4 text-gray-400">{c.phone}</td>
+                  <td className="p-4 text-center">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      c.status === 'active'
+                        ? 'bg-green-900 text-green-400'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {c.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

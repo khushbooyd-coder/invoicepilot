@@ -1,237 +1,112 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { auth } from "@/firebase";
-import jsPDF from "jspdf";
+import { useEffect, useState } from 'react';
+import { getInvoices, USE_MOCK, type Invoice } from '@/services/api';
+import { mockInvoices } from '@/services/mockData';
 
-import AddInvoiceModal from "@/components/invoices/AddInvoiceModal";
-import EditInvoiceModal from "@/components/invoices/EditInvoiceModal";
-import InvoiceCard from "@/components/invoices/InvoiceCard";
+const TABS = ['all', 'paid', 'unpaid', 'overdue'] as const;
+type Tab = typeof TABS[number];
+
+const statusStyle: Record<string, string> = {
+  paid:    'bg-green-900 text-green-400',
+  unpaid:  'bg-yellow-900 text-yellow-400',
+  overdue: 'bg-red-900 text-red-400',
+  draft:   'bg-gray-700 text-gray-400',
+};
 
 export default function InvoicesPage() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [openModal, setOpenModal] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState<any>(null);
-
-  const loadInvoices = async () => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const token = await user.getIdToken(true);
-
-      const res = await fetch(
-        "https://invoicepilot-6g3a.onrender.com/invoices",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await res.json();
-
-      if (Array.isArray(data)) {
-        setInvoices(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const [tab, setTab]         = useState<Tab>('all');
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        loadInvoices();
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        if (USE_MOCK) {
+          const filtered = tab === 'all'
+            ? mockInvoices
+            : mockInvoices.filter(i => i.status === tab);
+          setInvoices(filtered);
+        } else {
+          const res = await getInvoices(tab);
+          setInvoices(res.invoices);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load invoices');
+      } finally {
+        setLoading(false);
       }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const deleteInvoice = async (id: string) => {
-    if (!confirm("Delete this invoice?")) return;
-
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const token = await user.getIdToken();
-
-      await fetch(
-        `https://invoicepilot-6g3a.onrender.com/delete-invoice/${id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      loadInvoices();
-    } catch (err) {
-      console.error(err);
-      alert("Unable to delete invoice");
     }
-  };
-
-  const markPaid = async (id: string) => {
-    try {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      const token = await user.getIdToken();
-
-      await fetch(
-        `https://invoicepilot-6g3a.onrender.com/pay-invoice/${id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      loadInvoices();
-    } catch (err) {
-      console.error(err);
-      alert("Unable to update invoice");
-    }
-  };
-
-  const downloadInvoice = (invoice: any) => {
-    const doc = new jsPDF();
-
-    doc.setFontSize(20);
-    doc.text("InvoicePilot", 20, 20);
-
-    doc.setFontSize(14);
-    doc.text(`Invoice: ${invoice.invoiceNo}`, 20, 40);
-    doc.text(`Customer: ${invoice.customerName}`, 20, 50);
-
-    let y = 70;
-
-    doc.text("Products", 20, y);
-
-    y += 10;
-
-    invoice.items?.forEach((item: any) => {
-      doc.text(
-        `${item.productName}  x${item.quantity}  ₹${item.total}`,
-        20,
-        y
-      );
-
-      y += 10;
-    });
-
-    y += 10;
-
-    doc.text(
-      `Subtotal : ₹${invoice.subtotal}`,
-      20,
-      y
-    );
-
-    y += 10;
-
-    doc.text(
-      `GST : ${invoice.tax}%`,
-      20,
-      y
-    );
-
-    y += 10;
-
-    doc.text(
-      `Discount : ₹${invoice.discount}`,
-      20,
-      y
-    );
-
-    y += 15;
-
-    doc.setFontSize(16);
-
-    doc.text(
-      `Grand Total : ₹${invoice.grandTotal}`,
-      20,
-      y
-    );
-
-    doc.save(`${invoice.invoiceNo}.pdf`);
-  };
+    load();
+  }, [tab]);
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-5">
+      <h1 className="text-white text-xl font-semibold">Invoices</h1>
 
-      <div className="flex justify-between items-center">
-
-        <div>
-
-          <h1 className="text-3xl font-bold">
-            Invoices
-          </h1>
-
-          <p className="text-zinc-400">
-            Manage all generated invoices.
-          </p>
-
-        </div>
-
-        <button
-          onClick={() => setOpenModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-lg"
-        >
-          + Create Invoice
-        </button>
-
+      {/* Filter tabs */}
+      <div className="flex gap-2">
+        {TABS.map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-1.5 rounded-full text-sm capitalize transition-colors ${
+              tab === t
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
       </div>
 
-      {invoices.length === 0 ? (
+      {loading && <p className="text-gray-400 text-sm">Loading...</p>}
+      {error   && <p className="text-red-400 text-sm">{error}</p>}
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-10 text-center">
-
-          <p className="text-zinc-500">
-            No invoices found.
-          </p>
-
+      {!loading && !error && (
+        <div className="bg-gray-900 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase">
+                <th className="text-left p-4">Invoice</th>
+                <th className="text-left p-4">Customer</th>
+                <th className="text-left p-4">Date</th>
+                <th className="text-left p-4">Due Date</th>
+                <th className="text-right p-4">Amount</th>
+                <th className="text-right p-4">Balance</th>
+                <th className="text-center p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-gray-500">
+                    No invoices found
+                  </td>
+                </tr>
+              ) : invoices.map(inv => (
+                <tr key={inv.invoice_id} className="border-b border-gray-800 hover:bg-gray-800 transition-colors">
+                  <td className="p-4 text-blue-400 font-medium">{inv.invoice_number}</td>
+                  <td className="p-4 text-white">{inv.customer_name}</td>
+                  <td className="p-4 text-gray-400">{inv.date}</td>
+                  <td className="p-4 text-gray-400">{inv.due_date}</td>
+                  <td className="p-4 text-white text-right">₹{inv.total.toLocaleString()}</td>
+                  <td className="p-4 text-white text-right">₹{inv.balance.toLocaleString()}</td>
+                  <td className="p-4 text-center">
+                    <span className={`px-2 py-1 rounded-full text-xs capitalize ${statusStyle[inv.status]}`}>
+                      {inv.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-      ) : (
-
-        <div className="grid lg:grid-cols-2 gap-6">
-
-          {invoices.map((invoice) => (
-
-            <InvoiceCard
-              key={invoice.id}
-              invoice={invoice}
-              onEdit={setEditingInvoice}
-              onDelete={deleteInvoice}
-              onMarkPaid={markPaid}
-              onDownload={downloadInvoice}
-            />
-
-          ))}
-
-        </div>
-
       )}
-
-      <AddInvoiceModal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSaved={loadInvoices}
-      />
-
-      <EditInvoiceModal
-        open={editingInvoice !== null}
-        invoice={editingInvoice}
-        onClose={() => setEditingInvoice(null)}
-        onSaved={loadInvoices}
-      />
-
     </div>
   );
 }

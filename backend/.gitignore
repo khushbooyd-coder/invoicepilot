@@ -1,0 +1,4 @@
+.env
+firebase-key.json
+gws-service-account.json
+.env.local

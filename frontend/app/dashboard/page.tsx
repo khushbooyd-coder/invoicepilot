@@ -1,182 +1,84 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import {
-  User,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-} from "firebase/auth";
-
-import { auth, provider } from "@/firebase";
-import Layout from "@/components/Layout";
-
-import StatCard from "@/components/dashboard/StatCard";
-import RevenueChart from "@/components/dashboard/RevenueChart";
-import GoogleWorkspaceCard from "@/components/dashboard/GoogleWorkspaceCard";
-import ZohoCard from "@/components/dashboard/ZohoCard";
-import RecentInvoices from "@/components/dashboard/RecentInvoices";
-import RecentOrders from "@/components/dashboard/RecentOrders";
-import UpcomingRenewals from "@/components/dashboard/UpcomingRenewals";
-import QuickActions from "@/components/dashboard/QuickActions";
+import { useEffect, useState } from 'react';
+import { getDashboard, USE_MOCK, type DashboardResponse } from '@/services/api';
+import { mockStats, mockRenewals } from '@/services/mockData';
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dashboard, setDashboard] = useState({
-  revenue: 0,
-  customers: 0,
-  products: 0,
-  orders: 0,
-  recentOrders: [],
-  recentInvoices: [],
-  upcomingRenewals: [],
-});
-
-const loadDashboard = async (currentUser: User) => {
-  try {
-    const token = await currentUser.getIdToken();
-
-    const res = await fetch(
-      "https://invoicepilot-6g3a.onrender.com/dashboard",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    const data = await res.json();
-
-    setDashboard(data);
-
-  } catch (err) {
-    console.error(err);
-  }
-};
-
-  const login = async () => {
-    try {
-      const result = await signInWithPopup(auth, provider);
-      setUser(result.user);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const logout = async () => {
-    await signOut(auth);
-    setUser(null);
-  };
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-    if (u) {
-      setUser(u);
-      await loadDashboard(u);
+    async function load() {
+      try {
+        if (USE_MOCK) {
+          // Mock mode — remove once Zoho credentials are connected
+          setData({ stats: mockStats, upcomingRenewals: mockRenewals });
+        } else {
+          const result = await getDashboard();
+          setData(result);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
     }
-
-    setLoading(false);
-  });
-
-    return () => unsubscribe();
+    load();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="h-screen bg-black flex items-center justify-center text-white">
-        Loading...
-      </div>
-    );
-  }
+  if (loading) return <div className="p-8 text-gray-400">Loading...</div>;
+  if (error)   return <div className="p-8 text-red-400">{error}</div>;
+  if (!data)   return null;
 
-  if (!user) {
-    return (
-      <div className="h-screen bg-black flex items-center justify-center">
-        <button
-          onClick={login}
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-white"
-        >
-          Login with Google
-        </button>
-      </div>
-    );
-  }
+  const { stats, upcomingRenewals } = data;
 
   return (
-    <Layout user={user} logout={logout}>
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="p-6 space-y-6">
 
-        {/* Top Stats */}
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-          <StatCard
-            title="Revenue"
-            value={`₹${dashboard.revenue}`}
-          />
-
-          <StatCard
-            title="Customers"
-            value={dashboard.customers}
-            color="text-blue-400"
-          />
-
-          <StatCard
-            title="Orders"
-            value={dashboard.orders}
-            color="text-yellow-400"
-          />
-
-          <StatCard
-            title="Products"
-            value={dashboard.products}
-            color="text-purple-400"
-          />
-
-        </div>
-
-        {/* Revenue Chart */}
-
-        <RevenueChart />
-
-        {/* Workspace + Zoho */}
-
-        <div className="grid lg:grid-cols-2 gap-6">
-
-          <GoogleWorkspaceCard />
-
-          <ZohoCard />
-
-        </div>
-
-        {/* Recent Activity */}
-
-        <div className="grid lg:grid-cols-2 gap-6">
-
-          <RecentOrders
-            orders={dashboard.recentOrders}
-          />
-
-          <RecentInvoices
-            invoices={dashboard.recentInvoices}
-          />
-
-        </div>
-
-        {/* Bottom Section */}
-
-        <div className="grid lg:grid-cols-2 gap-6">
-
-          <UpcomingRenewals
-            renewals={dashboard.upcomingRenewals}
-          />
-
-          <QuickActions />
-
-        </div>
-
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Revenue" value={`₹${stats.totalRevenue.toLocaleString()}`} color="text-green-400" />
+        <StatCard label="Outstanding" value={`₹${stats.outstanding.toLocaleString()}`} color="text-yellow-400" />
+        <StatCard label="Overdue" value={`₹${stats.overdueAmount.toLocaleString()}`} color="text-red-400" />
+        <StatCard label="Customers" value={stats.totalCustomers.toString()} color="text-blue-400" />
       </div>
-    </Layout>
+
+      {/* Upcoming Renewals */}
+      <div className="bg-gray-900 rounded-xl p-5">
+        <h2 className="text-white font-medium mb-4">Upcoming Renewals</h2>
+        {upcomingRenewals.length === 0 ? (
+          <p className="text-gray-500 text-sm">No upcoming renewals</p>
+        ) : (
+          <div className="space-y-3">
+            {upcomingRenewals.map((r) => (
+              <div key={r.invoiceId} className="flex justify-between items-center">
+                <div>
+                  <p className="text-white text-sm">{r.customer}</p>
+                  <p className="text-gray-400 text-xs">{r.invoiceNumber} · due {r.dueDate}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white text-sm">₹{r.amount.toLocaleString()}</p>
+                  <p className={`text-xs ${r.daysLeft <= 7 ? 'text-red-400' : 'text-gray-400'}`}>
+                    {r.daysLeft} days left
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="bg-gray-900 rounded-xl p-4">
+      <p className="text-gray-400 text-xs mb-1">{label}</p>
+      <p className={`text-2xl font-semibold ${color}`}>{value}</p>
+    </div>
   );
 }
